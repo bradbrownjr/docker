@@ -1,3 +1,5 @@
+# Be sure to create the requisite backup config.yml file
+# saved to GH as minecraft-backup-config.yml
 version: '3.9'
 
 volumes:
@@ -8,8 +10,6 @@ volumes:
   minecraft_map:
     driver: local
 
-# Be sure to create the requisite config.yml file
-# saved to GH as minecraft-backup-config.yml
 services:
   backup:
     image: kaiede/minecraft-bedrock-backup
