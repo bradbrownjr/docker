@@ -1,0 +1,20 @@
+# Save as /var/lib/docker/volumes/minecraft_minecraft_backup/_data/config.yml 
+# on host before starting the minecraft-backup-1 container
+
+containers:
+  bedrock:
+    # Backup the world "Meepits" on the "minecraft" docker container
+    - name: minecraft
+      worlds:
+        - /data/worlds/Meepits
+schedule:
+  # This will perform a backup every 3 hours.
+  # At most this will generate 8 backups a day.
+  interval: 3h
+trim:
+  # Keep all backups for the last two days (today and yesterday)
+  # Keep at least one backup for the last 14 days
+  # Keep at least two backups per world
+  trimDays: 2
+  keepDays: 14
+  minKeep: 2
