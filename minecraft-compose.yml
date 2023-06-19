@@ -1,0 +1,78 @@
+version: '3.9'
+
+volumes:
+  minecraft_data:
+    driver: local
+  minecraft_backup:
+    driver: local
+  minecraft_map:
+    driver: local
+
+services:
+  backup:
+    image: kaiede/minecraft-bedrock-backup
+    restart: always
+    depends_on:
+      - "minecraft"
+    environment:
+        TZ: "America/New_York"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - minecraft_backup:/backups
+      - minecraft_data:/data
+
+  minecraft:
+    image: itzg/minecraft-bedrock-server
+    container_name: minecraft
+    restart: "unless-stopped"
+    environment:
+      EULA: "TRUE"
+      SERVER_NAME: "My Server"
+      SERVER_PORT: 19132
+      SERVER_PORT_V6:
+      GAMEMODE: "survival"
+      DIFFICULTY: "easy"
+      VERSION: LATEST
+      ALLOW_CHEATS: "true"
+      CORRECT_PLAYER_MOVEMENT:
+      DEFAULT_PLAYER_PERMISSION_LEVEL: operator
+      LEVEL_NAME: "Meepits"
+      LEVEL_SEED:
+      LEVEL_TYPE:
+      MAX_PLAYERS:
+      MAX_THREADS:
+      ONLINE_MODE:
+      PLAYER_IDLE_TIMEOUT:
+      PLAYER_MOVEMENT_DISTANCE_THRESHOLD:
+      PLAYER_MOVEMENT_DURATION_THRESHOLD_IN_MS:
+      PLAYER_MOVEMENT_SCORE_THRESHOLD:
+      SERVER_AUTHORITATIVE_MOVEMENT:      
+      TEXTUREPACK_REQUIRED:
+      TICK_DISTANCE:
+      VIEW_DISTANCE:
+      WHITE_LIST:
+    network_mode: host
+    ports:
+      - 19132:19132/udp
+    volumes:
+      - minecraft_data:/data
+    stdin_open: true
+    tty: true
+
+# Haven't gotten this to work yet, leave turned off for now
+  mapper:
+    image: ich777/unmined
+    container_name: uNmINeD-GUI
+    restart: "unless-stopped"
+    ports:
+      - 8100:8080
+    environment:
+      CUSTOM_RES_W: 1280
+      CUSTOM_RES_H: 850
+      UID: 99
+      GID: 100
+      UMASK: 000
+      DATA_PERM: 770
+    volumes:
+      - minecraft_map:/unmined
+      - minecraft_data:/unmined/worlds:ro
