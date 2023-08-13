@@ -7,8 +7,6 @@ volumes:
     driver: local
   minecraft_backup:
     driver: local
-  minecraft_map:
-    driver: local
 
 services:
   backup:
@@ -61,21 +59,3 @@ services:
       - minecraft_data:/data
     stdin_open: true
     tty: true
-
-# Haven't gotten this to work yet, leave turned off for now
-  mapper:
-    image: ich777/unmined
-    container_name: minecraft-mapper
-    restart: "unless-stopped"
-    ports:
-      - 8100:8080
-    environment:
-      CUSTOM_RES_W: 1280
-      CUSTOM_RES_H: 850
-      UID: 99
-      GID: 100
-      UMASK: 000
-      DATA_PERM: 770
-    volumes:
-      - minecraft_map:/unmined
-      - minecraft_data:/unmined/worlds:ro
