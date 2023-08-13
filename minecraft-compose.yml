@@ -12,6 +12,7 @@ volumes:
 
 services:
   backup:
+    container_name: minecraft-backup
     image: kaiede/minecraft-bedrock-backup
     restart: always
     depends_on:
@@ -25,11 +26,11 @@ services:
 
   minecraft:
     image: itzg/minecraft-bedrock-server
-    container_name: minecraft
+    container_name: minecraft-server
     restart: "unless-stopped"
     environment:
       EULA: "TRUE"
-      SERVER_NAME: "My Server"
+      SERVER_NAME: "Lynwood"
       SERVER_PORT: 19132
       SERVER_PORT_V6:
       GAMEMODE: "survival"
@@ -64,7 +65,7 @@ services:
 # Haven't gotten this to work yet, leave turned off for now
   mapper:
     image: ich777/unmined
-    container_name: uNmINeD-GUI
+    container_name: minecraft-mapper
     restart: "unless-stopped"
     ports:
       - 8100:8080
