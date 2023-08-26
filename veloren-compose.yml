@@ -24,4 +24,4 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     command: --interval 30 --stop-timeout 130s --cleanup veloren-game-server-master
-    restart: on-failure:0
+    restart: unless-stopped # Changed from default, on-failure:0
