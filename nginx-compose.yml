@@ -1,0 +1,23 @@
+version: '3.8'
+
+volumes:
+  npmdata:
+    driver: local
+  letsencrypt:
+    driver: local    
+    
+services:
+  app:
+    container_name: nginx-proxy-manager
+    image: 'jc21/nginx-proxy-manager:latest'
+    restart: unless-stopped
+    ports:
+      # These ports are in format <host-port>:<container-port>
+      - '80:80' # Public HTTP Port
+      - '443:443' # Public HTTPS Port
+      - '81:81' # Admin Web Port
+      # Add any other Stream port you want to expose
+      # - '21:21' # FTP
+    volumes:
+      - npmdata:/data
+      - letsencrypt:/etc/letsencrypt
