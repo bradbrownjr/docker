@@ -1,0 +1,16 @@
+version: "3.2"
+volumes:
+  picodata:
+    driver: local
+services:
+  picoshare:
+    image: mtlynch/picoshare
+    container_name: picoshare
+    environment:
+      - PORT=4001
+      - PS_SHARED_SECRET=dummypass # Change to any password
+    ports:
+      - 4001:4001
+    command: -db /data/store.db
+    volumes:
+      - picodata:/data
