@@ -10,7 +10,7 @@ OS: Proxmox VE
 LXC:
 - DNS (AdGuard), separated and not Docker so I don't break the Internet for the family
   
-VMs:
+VMs and their Docker containers:
 - applications-vm
   - Flame homepage - Starting point for my day with applications and frequently used bookmarks
   - IT Tools - A wide variety of techy tools!
@@ -26,7 +26,9 @@ VMs:
 - games-vm
   - EmulatorJS - Host emulators and ROMs for play over web browser
   - Minecraft - Bedrock Edition survival server for family use
+  - portainer_agent - Connects to Portainer on applications-vm for one-stop management of Docker
   - Veloren - Open souce MMORPG, hosted locally for family/friend use
+  - Watchtower - Keeps containers up to date
 
 The network 
 -----------
