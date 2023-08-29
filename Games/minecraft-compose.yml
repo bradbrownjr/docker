@@ -12,7 +12,7 @@ services:
   backup:
     container_name: minecraft-backup
     image: kaiede/minecraft-bedrock-backup
-    restart: always
+    restart: "unless-stopped"
     depends_on:
       - "minecraft"
     environment:
