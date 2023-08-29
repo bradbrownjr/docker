@@ -1,0 +1,23 @@
+---
+version: "2.1"
+
+volumes:
+  netboot_config:
+    driver: local
+  netboot_assets:
+    driver: loca
+    
+services:
+  netbootxyz:
+    image: ghcr.io/netbootxyz/netbootxyz
+    container_name: netbootxyz
+    environment:
+      - MENU_VERSION=2.0.47 # optional
+    volumes:
+      - netboot_config:/config # optional
+      - netboot_assets:/assets # optional
+    ports:
+      - 3000:3000
+      - 69:69/udp
+      - 8080:80 #optional
+    restart: unless-stopped
