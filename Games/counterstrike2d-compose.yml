@@ -1,0 +1,13 @@
+version: '3.1'
+
+services:
+  server:
+    image: engin33r/cs2d-server:latest
+    restart: "unless-stopped"
+    ports:
+      - 36963:36963/udp
+    volumes:
+      - cs2data:/cs2d
+
+volumes:
+  cs2data:
