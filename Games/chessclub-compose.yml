@@ -1,0 +1,13 @@
+version: '3.9'
+services:
+  chess-club:
+    image: chesscorp/chess-club
+    environment:
+        - dbddl=update
+    ports:
+        - '8083:80'
+    volumes:
+        - chessdata:/data
+volumes:
+  chessdata:
+    driver: local
