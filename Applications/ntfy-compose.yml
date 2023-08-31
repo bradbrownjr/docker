@@ -1,0 +1,21 @@
+version: "2.1"
+volumes:
+  ntfycache:
+    driver: local
+  ntfyetc:
+    driver: local
+services:
+  ntfy:
+    image: binwiederhier/ntfy
+    container_name: ntfy
+    command:
+      - serve
+    environment:
+      - TZ=America/New_York    # optional: Change to your desired timezone
+    #user: UID:GID # optional: Set custom user/group or uid/gid
+    volumes:
+      - ntfycache:/var/cache/ntfy
+      - ntfyetc:/etc/ntfy
+    ports:
+      - 8180:80
+    restart: unless-stopped
