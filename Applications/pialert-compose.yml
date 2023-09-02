@@ -1,0 +1,17 @@
+# When configuring pi-alert, identify the nic of the docker host vm with 'ip route', it's not going to be eth0, instead it may be something like ens18.
+version: '3.9'
+volumes:
+  pialertdata:
+    driver: local   
+services:
+  pi.alert:
+    image: 'jokobsk/pi.alert:latest'
+    environment:
+      - PORT=20211
+      - TZ=America/New_York
+    network_mode: host
+    ports:
+      - 20211:20211
+    volumes:
+      - pialertdata:/home/pi/pialert/
+    restart: unless-stopped
