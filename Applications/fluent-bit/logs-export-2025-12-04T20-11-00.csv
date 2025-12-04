@@ -1,0 +1,11 @@
+Time,Service,Level,Message,Metadata,TraceID
+2025-12-04T20:10:30.000Z,syslog,info,"Dec  4 15:10:30 Tower kernel: docker0: port 28(veth7aa98e3) entered disabled state","{""source"":""syslog"",""facility"":1,""severity"":6}",
+2025-12-04T20:10:24.000Z,syslog,info,"Dec  4 15:10:24 Tower kernel: docker0: port 28(veth7aa98e3) entered blocking state","{""source"":""syslog"",""facility"":1,""severity"":6}",
+2025-12-04T20:09:26.000Z,syslog,info,"Dec  4 15:09:26 Tower kernel: docker0: port 28(veth985c304) entered disabled state","{""source"":""syslog"",""facility"":1,""severity"":6}",
+2025-12-04T20:09:22.000Z,syslog,info,"Dec  4 15:09:22 Tower kernel: eth0: renamed from veth0dcfb31","{""source"":""syslog"",""facility"":1,""severity"":6}",
+2025-12-04T20:09:12.000Z,syslog,info,"Dec  4 15:09:12 Tower kernel: docker0: port 28(veth985c304) entered blocking state","{""source"":""syslog"",""facility"":1,""severity"":6}",
+2025-12-04T15:10:30.000Z,172.22.0.1,info,"docker0: port 28(veth7aa98e3) entered disabled state","{""source"":""syslog"",""program"":""kernel"",""facility"":0,""severity"":6,""source_ip"":""172.22.0.1""}",
+2025-12-04T15:10:24.000Z,172.22.0.1,info,"docker0: port 28(veth7aa98e3) entered blocking state","{""source"":""syslog"",""program"":""kernel"",""facility"":0,""severity"":6,""source_ip"":""172.22.0.1""}",
+2025-12-04T15:09:26.000Z,172.22.0.1,info,"docker0: port 28(veth985c304) entered disabled state","{""source"":""syslog"",""program"":""kernel"",""facility"":0,""severity"":6,""source_ip"":""172.22.0.1""}",
+2025-12-04T15:09:22.000Z,172.22.0.1,info,"eth0: renamed from veth0dcfb31","{""source"":""syslog"",""program"":""kernel"",""facility"":0,""severity"":6,""source_ip"":""172.22.0.1""}",
+2025-12-04T15:09:12.000Z,172.22.0.1,info,"docker0: port 28(veth985c304) entered blocking state","{""source"":""syslog"",""program"":""kernel"",""facility"":0,""severity"":6,""source_ip"":""172.22.0.1""}",
