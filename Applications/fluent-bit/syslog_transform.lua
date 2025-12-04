@@ -14,13 +14,38 @@ function transform_syslog(tag, timestamp, record)
     -- Set level
     record["level"] = severity_map[severity] or "info"
     
-    -- Set service from ident, host, or default
-    if record["ident"] and record["ident"] ~= "" then
-        record["service"] = record["ident"]
+    -- Try to parse hostname from the raw message (RFC 3164 format)
+    -- Format: "Dec  4 14:55:09 Tower kernel: message"
+    local parsed_host = nil
+    local program = nil
+    local raw_msg = record["message"] or record["msg"] or ""
+    
+    -- Match RFC 3164: "Mon DD HH:MM:SS hostname tag: message"
+    local host_match = string.match(raw_msg, "^%w+%s+%d+%s+%d+:%d+:%d+%s+(%S+)%s+")
+    if host_match then
+        parsed_host = host_match
+        -- Also try to get the program/tag
+        program = string.match(raw_msg, "^%w+%s+%d+%s+%d+:%d+:%d+%s+%S+%s+([^:%[]+)")
+    end
+    
+    -- Determine service name with priority:
+    -- 1. Parsed hostname from message (most reliable for local syslog)
+    -- 2. Source IP from network connection (for remote syslog)
+    -- 3. Host field from syslog header
+    -- 4. Fallback to "syslog"
+    if parsed_host and parsed_host ~= "" then
+        record["service"] = parsed_host
+        record["_program"] = program
+    elseif record["source_ip"] and record["source_ip"] ~= "" then
+        -- Use source IP for network syslog (firewall, switches, etc.)
+        record["service"] = record["source_ip"]
+        record["_program"] = record["ident"]
     elseif record["host"] and record["host"] ~= "" then
         record["service"] = record["host"]
+        record["_program"] = record["ident"]
     else
         record["service"] = "syslog"
+        record["_program"] = record["ident"]
     end
     
     -- IMPORTANT: Get the actual message content
@@ -55,12 +80,12 @@ function transform_syslog(tag, timestamp, record)
     
     -- Add metadata
     record["metadata"] = {
+        source = "syslog",
+        program = record["_program"] or record["ident"],
         facility = facility,
         severity = severity,
-        ident = record["ident"],
-        pid = record["pid"],
-        original_host = record["host"],
-        source = "syslog"
+        parsed_host = parsed_host,
+        source_ip = record["source_ip"]
     }
     
     -- Clean up intermediate fields (don't send to LogWard)
@@ -70,6 +95,8 @@ function transform_syslog(tag, timestamp, record)
     record["host"] = nil
     record["msg"] = nil
     record["log"] = nil
+    record["source_ip"] = nil
+    record["_program"] = nil
     
     return 1, timestamp, record
 end
