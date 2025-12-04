@@ -5,6 +5,31 @@ local severity_map = {
     [3] = "error", [4] = "warn", [5] = "info", [6] = "info", [7] = "debug"
 }
 
+-- Helper function to extract just the IP from source_ip
+-- Fluent Bit may return "udp://10.6.26.1:22156" format
+local function extract_ip(source)
+    if not source or source == "" then
+        return nil
+    end
+    -- Try to match IP from "protocol://ip:port" format
+    local ip = string.match(source, "://([%d%.]+):")
+    if ip then
+        return ip
+    end
+    -- Try to match IP from "ip:port" format
+    ip = string.match(source, "^([%d%.]+):")
+    if ip then
+        return ip
+    end
+    -- Try to match bare IP
+    ip = string.match(source, "^(%d+%.%d+%.%d+%.%d+)$")
+    if ip then
+        return ip
+    end
+    -- Return as-is if no pattern matches
+    return source
+end
+
 function transform_syslog(tag, timestamp, record)
     -- Extract severity from priority
     local pri = tonumber(record["pri"]) or 14
@@ -28,6 +53,9 @@ function transform_syslog(tag, timestamp, record)
         program = string.match(raw_msg, "^%w+%s+%d+%s+%d+:%d+:%d+%s+%S+%s+([^:%[]+)")
     end
     
+    -- Extract clean IP from source_ip field
+    local clean_source_ip = extract_ip(record["source_ip"])
+    
     -- Determine service name with priority:
     -- 1. Parsed hostname from message (most reliable for local syslog)
     -- 2. Source IP from network connection (for remote syslog)
@@ -36,9 +64,9 @@ function transform_syslog(tag, timestamp, record)
     if parsed_host and parsed_host ~= "" then
         record["service"] = parsed_host
         record["_program"] = program
-    elseif record["source_ip"] and record["source_ip"] ~= "" then
+    elseif clean_source_ip then
         -- Use source IP for network syslog (firewall, switches, etc.)
-        record["service"] = record["source_ip"]
+        record["service"] = clean_source_ip
         record["_program"] = record["ident"]
     elseif record["host"] and record["host"] ~= "" then
         record["service"] = record["host"]
@@ -85,7 +113,7 @@ function transform_syslog(tag, timestamp, record)
         facility = facility,
         severity = severity,
         parsed_host = parsed_host,
-        source_ip = record["source_ip"]
+        source_ip = clean_source_ip
     }
     
     -- Clean up intermediate fields (don't send to LogWard)
