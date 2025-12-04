@@ -1,0 +1,191 @@
+# LogWard Docker Compose for Unraid
+# With TimescaleDB (required for log time-series optimization)
+#
+# Required environment variables (create a .env file or set these):
+#   HOST_IP              - Your server's IP address (e.g., 192.168.1.100)
+#   POSTGRES_PASSWORD    - Password for PostgreSQL database
+#   API_KEY_SECRET       - 64-character hex string for API key encryption
+#   LOGWARD_API_KEY      - API key from LogWard UI (for Fluent Bit)
+#
+# Optional environment variables:
+#   REDIS_HOST           - External Redis host (default: redis)
+#   REDIS_PORT           - External Redis port (default: 6379)
+#   REDIS_PASSWORD       - Redis password (default: none)
+#
+# Fluent Bit config files required at:
+#   /mnt/user/appdata/logward/fluent-bit/fluent-bit.conf
+#   /mnt/user/appdata/logward/fluent-bit/parsers.conf
+#   /mnt/user/appdata/logward/fluent-bit/syslog_transform.lua
+
+services:
+  # TimescaleDB - PostgreSQL with time-series extensions
+  logward-postgres:
+    image: timescale/timescaledb:latest-pg16
+    container_name: logward-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=logward
+      - POSTGRES_USER=logward
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - /mnt/user/appdata/logward/postgres:/var/lib/postgresql/data
+    networks:
+      - logward-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U logward -d logward"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  logward-backend:
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile
+    container_name: logward-backend
+    restart: unless-stopped
+    environment:
+      # Database Configuration (TimescaleDB)
+      - DATABASE_URL=postgresql://logward:${POSTGRES_PASSWORD:-changeme}@logward-postgres:5432/logward
+      - DATABASE_HOST=logward-postgres
+      - DB_USER=logward
+      - POSTGRES_HOST=logward-postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=logward
+      - POSTGRES_USER=logward
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      
+      # Redis Configuration (External Redis)
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@${REDIS_HOST:-redis}:${REDIS_PORT:-6379}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      
+      # Application Configuration
+      - NODE_ENV=production
+      - PORT=8080
+      - HOST=0.0.0.0
+      - API_KEY_SECRET=${API_KEY_SECRET:-generate-a-random-64-char-hex-string}
+      - CORS_ORIGIN=http://${HOST_IP:-localhost}:3003
+      - SERVICE_NAME=logward-backend
+      
+      # Optional: Email (leave blank if not using)
+      - SMTP_HOST=
+      - SMTP_PORT=587
+      - SMTP_USER=
+      - SMTP_PASS=
+      - SMTP_FROM=noreply@logward.local
+      
+      # Internal logging (optional)
+      - INTERNAL_LOGGING_ENABLED=false
+      - INTERNAL_API_KEY=
+      
+      # Logging
+      - LOG_LEVEL=info
+    ports:
+      - "3002:8080"
+    networks:
+      - logward-network
+    depends_on:
+      logward-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  logward-frontend:
+    build:
+      context: .
+      dockerfile: packages/frontend/Dockerfile
+      args:
+        - PUBLIC_API_URL=http://${HOST_IP:-localhost}:3002
+    container_name: logward-frontend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PUBLIC_API_URL=http://${HOST_IP:-localhost}:3002
+      - ORIGIN=http://${HOST_IP:-localhost}:3003
+    ports:
+      - "3003:3000"
+    networks:
+      - logward-network
+    depends_on:
+      logward-backend:
+        condition: service_started
+
+  # Fluent Bit - Syslog receiver that forwards to LogWard
+  logward-fluent-bit:
+    image: fluent/fluent-bit:latest
+    container_name: logward-fluent-bit
+    restart: unless-stopped
+    ports:
+      - "514:5140/udp"    # Syslog UDP (maps privileged 514 to container 5140)
+      - "514:5140/tcp"    # Syslog TCP
+    environment:
+      - LOGWARD_API_KEY=${LOGWARD_API_KEY:-your-api-key-from-logward-ui}
+    volumes:
+      - /mnt/user/appdata/logward/fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - /mnt/user/appdata/logward/fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf:ro
+      - /mnt/user/appdata/logward/fluent-bit/syslog_transform.lua:/fluent-bit/etc/syslog_transform.lua:ro
+      - /var/log:/var/log:ro
+    networks:
+      - logward-network
+    depends_on:
+      logward-backend:
+        condition: service_started
+
+  logward-worker:
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile
+    container_name: logward-worker
+    restart: unless-stopped
+    command: ["worker"]
+    environment:
+      # Database Configuration (TimescaleDB)
+      - DATABASE_URL=postgresql://logward:${POSTGRES_PASSWORD:-changeme}@logward-postgres:5432/logward
+      - DATABASE_HOST=logward-postgres
+      - DB_USER=logward
+      - POSTGRES_HOST=logward-postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=logward
+      - POSTGRES_USER=logward
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      
+      # Redis Configuration (External Redis)
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@${REDIS_HOST:-redis}:${REDIS_PORT:-6379}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      
+      # Application Configuration
+      - NODE_ENV=production
+      - API_KEY_SECRET=${API_KEY_SECRET:-generate-a-random-64-char-hex-string}
+      - SERVICE_NAME=logward-worker
+      
+      # Optional: Email (leave blank if not using)
+      - SMTP_HOST=
+      - SMTP_PORT=587
+      - SMTP_USER=
+      - SMTP_PASS=
+      - SMTP_FROM=noreply@logward.local
+      
+      # Internal logging (optional)
+      - INTERNAL_LOGGING_ENABLED=false
+      - INTERNAL_API_KEY=
+      
+      # Logging
+      - LOG_LEVEL=info
+    networks:
+      - logward-network
+    depends_on:
+      logward-postgres:
+        condition: service_healthy
+      logward-backend:
+        condition: service_started
+
+networks:
+  logward-network:
+    driver: bridge
