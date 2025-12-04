@@ -12,7 +12,7 @@
 #   REDIS_PORT           - External Redis port (default: 6379)
 #   REDIS_PASSWORD       - Redis password (default: none)
 #
-# Fluent Bit config files required at:
+# Fluent Bit config files required for better sysloging that provided out-of-box at:
 #   /mnt/user/appdata/logward/fluent-bit/fluent-bit.conf
 #   /mnt/user/appdata/logward/fluent-bit/parsers.conf
 #   /mnt/user/appdata/logward/fluent-bit/syslog_transform.lua
