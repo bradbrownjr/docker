@@ -1,0 +1,147 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+      - OLLAMA_LOAD_TIMEOUT=15m
+      - OLLAMA_KEEP_ALIVE=0
+    restart: "no"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  whisperx:
+    image: onerahmet/openai-whisper-asr-webservice:latest-gpu
+    container_name: whisperx
+    ports:
+      - "9000:9000"
+    volumes:
+      - whisperx_cache:/root/.cache
+    environment:
+      - ASR_ENGINE=whisperx
+      - ASR_MODEL=base
+      - ASR_DEVICE=cuda
+    restart: "no"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  kokoro:
+    image: ghcr.io/remsky/kokoro-fastapi-gpu:latest
+    container_name: kokoro
+    ports:
+      - "8880:8880"
+    environment:
+      - TARGET_MIN_TOKENS=175
+      - TARGET_MAX_TOKENS=250
+      - ABSOLUTE_MAX_TOKENS=450
+    restart: "no"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  comfyui:
+    image: frefrik/comfyui-flux:latest
+    container_name: comfyui
+    command: bash -c "sleep 5 && bash /scripts/entrypoint.sh"
+    ports:
+      - "8188:8188"
+    volumes:
+      - comfyui_app:/app
+      - comfyui_models:/app/models
+    dns:
+      - 10.6.26.1
+      - 8.8.8.8
+    environment:
+      - HF_TOKEN=${HF_TOKEN}
+      - LOW_VRAM=${LOW_VRAM:-false}
+      - MODELS_DOWNLOAD=${FLUX_MODELS:-schnell}
+      - CLI_ARGS=--gpu-only
+    restart: "no"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    ports:
+      - "8080:8080"
+    volumes:
+      - searxng_data:/etc/searxng
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8080
+    restart: "no"
+
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:cuda
+    container_name: openwebui
+    ports:
+      - "3000:8080"
+    volumes:
+      - openwebui_data:/app/backend/data
+    environment:
+      # Ollama
+      - OLLAMA_BASE_URL=http://ollama:11434
+      # Image generation via ComfyUI
+      - ENABLE_IMAGE_GENERATION=true
+      - IMAGE_GENERATION_ENGINE=comfyui
+      - COMFYUI_BASE_URL=http://comfyui:8188
+      # TTS via Kokoro
+      - AUDIO_TTS_ENGINE=openai
+      - AUDIO_TTS_OPENAI_API_BASE_URL=http://kokoro:8880/v1
+      - AUDIO_TTS_OPENAI_API_KEY=not-needed
+      - AUDIO_TTS_MODEL=kokoro
+      - AUDIO_TTS_VOICE=af_bella
+      # STT via WhisperX
+      - AUDIO_STT_ENGINE=openai
+      - AUDIO_STT_OPENAI_API_BASE_URL=http://whisperx:9000/v1
+      - AUDIO_STT_OPENAI_API_KEY=not-needed
+      - AUDIO_STT_MODEL=whisper-1
+      # Web search via SearXNG
+      - ENABLE_RAG_WEB_SEARCH=true
+      - RAG_WEB_SEARCH_ENGINE=searxng
+      - SEARXNG_QUERY_URL=http://searxng:8080/search?q=<query>&format=json
+    depends_on:
+      - ollama
+      - whisperx
+      - kokoro
+      - comfyui
+      - searxng
+    restart: "no"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  searxng_data:
+  ollama_models:
+  whisperx_cache:
+  comfyui_app:
+  comfyui_models:
+  openwebui_data:
