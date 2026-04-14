@@ -15,10 +15,10 @@ A self-hosted, GPU-accelerated AI stack powered by Docker Compose. Includes a ch
 
 ## Prerequisites
 
-- **OS:** Linux (tested on CachyOS/Arch; Ubuntu/Debian support coming)
+- **OS:** Linux — tested on CachyOS/Arch, Bazzite (Fedora Atomic), Debian/Ubuntu
 - **GPU:** NVIDIA GPU with CUDA support
-- **Docker:** Docker Engine + Docker Compose v2
-- **NVIDIA Container Toolkit:** Installed and configured (handled automatically by `start-docker.sh` on Arch-based systems)
+- **Docker:** Docker Engine + Docker Compose v2 (installed automatically by `start-docker.sh` if missing)
+- **NVIDIA Container Toolkit:** Installed and configured automatically by `start-docker.sh` on Arch-based systems
 - **Hugging Face Token:** Required for ComfyUI/Flux model downloads — get one at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
 
 ## Getting Started
@@ -30,49 +30,34 @@ git clone https://github.com/bradbrownjr/docker.git
 cd docker/AI
 ```
 
-### 2. Configure environment variables
-
-```bash
-cp .env.example .env
-```
-
-Open `.env` and fill in your values:
-
-```env
-HF_TOKEN=your_huggingface_token_here
-LOW_VRAM=false        # Set to true if you have less than 12GB VRAM
-FLUX_MODELS=schnell   # Options: schnell (fast) or dev (quality)
-```
-
-### 3. Pull Docker images
-
-```bash
-bash pull.sh
-```
-
-This pulls all required images: Ollama, WhisperX, Kokoro, ComfyUI, SearXNG, and Open WebUI.
-
-### 4. Start the stack
-
-**Recommended (handles Docker daemon + NVIDIA setup automatically):**
+### 2. Start the stack
 
 ```bash
 bash start-docker.sh
 ```
 
-This script will:
-- Install and configure the NVIDIA Container Toolkit if missing (Arch/CachyOS only)
-- Start the Docker daemon if it isn't running
-- Add your user to the `docker` group if needed
-- Launch the full stack
+That's it. The script handles everything:
+- Installs NVIDIA Container Toolkit if missing (Arch/CachyOS only)
+- Enables and starts the Docker daemon
+- Installs Docker Compose V2 if missing
+- Adds your user to the `docker` group
+- Creates `.env` from `.env.example` and prompts for any required values (including your `HF_TOKEN`)
+- Launches the full stack
 
-**Or start directly with `run.sh`:**
+> **Note:** Manual `cp .env.example .env` and `bash pull.sh` steps are no longer required — `start-docker.sh` handles both.
 
-```bash
-bash run.sh
-```
+### First startup
 
-Once Open WebUI is ready, it will open automatically in your browser at **http://localhost:3000**.
+The first run will be slow — ComfyUI downloads Flux model weights from Hugging Face on first start (can take 10–30 minutes depending on your connection). All other services start immediately. Subsequent starts are fast.
+
+**You still need to pull an LLM model for chat.** After the stack is up, either:
+- Open WebUI at http://localhost:3000 → Admin → Models → pull a model
+- Or from the terminal:
+  ```bash
+  docker exec -it ollama ollama pull llama3.2
+  ```
+
+All integrations (image generation, TTS, STT, web search) are pre-wired and ready without any additional configuration.
 
 ## Managing the Stack
 
@@ -88,6 +73,8 @@ bash run.sh logs         # Tail logs for all services
 bash run.sh logs ollama  # Tail logs for a specific service
 bash run.sh free-vram    # Free GPU memory held by ComfyUI
 ```
+
+`run.sh` also checks for missing or placeholder `.env` values on startup and prompts you to fill them in.
 
 ### Available service names for `logs`
 
@@ -108,8 +95,6 @@ bash run.sh free-vram    # Free GPU memory held by ComfyUI
 
 - **Low VRAM?** Set `LOW_VRAM=true` in your `.env` file before starting.
 - **Image generation failing?** ComfyUI and Ollama can contend for GPU memory. Run `bash run.sh free-vram` to release ComfyUI's VRAM before generating images.
-- **First startup is slow** — ComfyUI will download Flux model weights on first run. Subsequent starts are much faster.
-- **Pulling models in Ollama:** After the stack is up, open Open WebUI and download a model from the admin settings, or run:
-  ```bash
-docker exec -it ollama ollama pull llama3.2
-```
+- **First startup is slow** — ComfyUI downloads Flux model weights on first run. Subsequent starts are much faster.
+- **Ollama has no models by default** — pull one after the stack is up (see Getting Started above).
+- **Docker group not active?** If `run.sh` can't reach the Docker socket, it will attempt to activate the group automatically. If that fails, run `newgrp docker` in your shell and retry.
