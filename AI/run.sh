@@ -77,10 +77,16 @@ if ! docker compose version &>/dev/null; then
   exit 1
 fi
 
-if ! docker info &>/dev/null; then
+if ! docker info &>/dev/null 2>&1; then
+  # If we're in the docker group in /etc/group but it's not active in this
+  # session (e.g. just added by start-docker.sh), re-exec under sg to activate it
+  if grep -qE "^docker:.*\b${USER}\b" /etc/group 2>/dev/null && ! groups | grep -qw docker; then
+    echo "==> Activating docker group for this session..."
+    exec sg docker -c "bash '$0' $*"
+  fi
   echo "ERROR: Cannot connect to the Docker daemon."
   echo "  • Docker not running? Try: sudo systemctl start docker"
-  echo "  • Just added to docker group? Run: newgrp docker  (then retry)"
+  echo "  • Not in docker group? Run: sudo usermod -aG docker \$USER, then log out and back in"
   exit 1
 fi
 
