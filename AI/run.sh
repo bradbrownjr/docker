@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DIR="$(cd "$(dirname "$0")" && pwd)"
+DIR="$(cd ""$(dirname "$0")"" && pwd)"
 
 if [[ ! -f "$DIR/.env" ]]; then
   echo "ERROR: .env not found. Copy .env.example and fill in your HF_TOKEN:"
@@ -86,11 +86,11 @@ interactive() {
   esac
 }
 
-case "
+case "${1:-interactive}" in
   interactive) interactive ;;
   start)       do_start ;;
   restart)     do_restart ;;
-  stop)        do_stop ;; 
+  stop)        do_stop ;;
   pull)
     bash "$DIR/pull.sh"
     do_start
@@ -102,13 +102,13 @@ case "
       -d '{"unload_models": true, "free_memory": true}' >/dev/null
     FREE=$(docker exec ollama nvidia-smi --query-gpu=memory.free --format=csv,noheader 2>/dev/null || echo "unknown")
     echo "==> Done. VRAM free: $FREE"
-    ;; 
+    ;;  
   logs)
     "${COMPOSE[@]}" logs -f "${2:-}"
-    ;; 
+    ;;
   *)
     echo "Unknown command: $1"
     echo "Usage: $0 [start|restart|stop|pull|free-vram|logs [service]]"
-    exit 1;
+    exit 1
     ;;
 esac
