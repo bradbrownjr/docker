@@ -8,8 +8,8 @@ if [[ "$EUID" -ne 0 ]]; then
 fi
 
 # Resolve the real user (the one who invoked sudo, or $USER if already root)
-REAL_USER=""){SUDO_USER:-$USER}"
-SCRIPT_DIR=""){cd ""){dirname "$0")" && pwd)"
+REAL_USER="${SUDO_USER:-$USER}"
+SCRIPT_DIR="$(cd ""$(dirname "$0")" && pwd)"
 
 # ── NVIDIA Container Toolkit ─────────────────────────────────────────────────
 if ! command -v nvidia-ctk &>/dev/null; then
@@ -22,7 +22,7 @@ if ! command -v nvidia-ctk &>/dev/null; then
     exit 1
   fi
   echo "==> Configuring Docker runtime for NVIDIA..."
-nvidia-ctk runtime configure --runtime=docker
+  nvidia-ctk runtime configure --runtime=docker
   systemctl restart docker
   echo "==> NVIDIA Container Toolkit installed and configured."
 else
@@ -32,7 +32,7 @@ fi
 # ── Docker daemon ─────────────────────────────────────────────────────────────
 if ! systemctl is-active --quiet docker; then
   echo "==> Starting Docker daemon..."
-systemctl start docker
+  systemctl start docker
 else
   echo "==> Docker daemon already running."
 fi
@@ -40,7 +40,7 @@ fi
 # ── Docker group ──────────────────────────────────────────────────────────────
 if ! groups "$REAL_USER" | grep -q '\bdocker\b'; then
   echo "==> Adding $REAL_USER to the docker group..."
-usermod -aG docker "$REAL_USER"
+  usermod -aG docker "$REAL_USER"
   echo "==> Done. Group membership will apply in new shells."
 else
   echo "==> $REAL_USER is already in the docker group."
@@ -48,4 +48,4 @@ fi
 
 # ── Launch stack as the real user ─────────────────────────────────────────────
 echo "==> Docker is ready. Launching stack..."
-exec su - "$REAL_USER" -c "bash '$SCRIPT_DIR/run.sh' ${*:+$*}"
+exec su - "$REAL_USER" -c "bash '$SCRIPT_DIR/run.sh' ${*:+$*}
