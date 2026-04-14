@@ -20,8 +20,35 @@ if [[ ! -f "$ENV_FILE" ]]; then
   cp "$ENV_EXAMPLE" "$ENV_FILE"
 fi
 
+# Repair .env if it has the same literal \n corruption
+if grep -q '\\n' "$ENV_FILE" 2>/dev/null; then
+  sed -i 's/\\n/\n/g' "$ENV_FILE"
+fi
+
+# Rebuild .env from .env.example structure to remove duplicate keys
+if [[ -f "$ENV_EXAMPLE" ]]; then
+  _tmp=$(mktemp)
+  exec 3< "$ENV_EXAMPLE"
+  while IFS= read -r _line <&3; do
+    if [[ "$_line" =~ ^[[:space:]]*# || -z "$_line" ]]; then
+      printf '%s\n' "$_line"
+    elif [[ "$_line" == *=* ]]; then
+      _key="${_line%%=*}"
+      _cur=$(grep "^${_key}=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2-)
+      if [[ -n "$_cur" ]]; then
+        printf '%s=%s\n' "$_key" "$_cur"
+      else
+        printf '%s\n' "$_line"
+      fi
+    else
+      printf '%s\n' "$_line"
+    fi
+  done > "$_tmp"
+  exec 3<&-
+  mv "$_tmp" "$ENV_FILE"
+fi
+
 # Prompt for any missing or placeholder values
-# Read the file via fd 3 so stdin stays connected to the terminal for prompts
 if [[ -f "$ENV_EXAMPLE" ]]; then
   exec 3< "$ENV_EXAMPLE"
   while IFS= read -r line <&3; do
