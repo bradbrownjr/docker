@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DIR="$(cd ""$(dirname "$0")"" && pwd)"
+DIR="$(cd "$(dirname "$0")" && pwd)"
 
 if [[ ! -f "$DIR/.env" ]]; then
   echo "ERROR: .env not found. Copy .env.example and fill in your HF_TOKEN:"
