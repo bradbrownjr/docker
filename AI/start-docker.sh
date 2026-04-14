@@ -8,7 +8,7 @@ if [[ "$EUID" -ne 0 ]]; then
 fi
 
 REAL_USER="${SUDO_USER:-$USER}"
-SCRIPT_DIR="$(cd ""$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/.env"
 ENV_EXAMPLE="$SCRIPT_DIR/.env.example"
 
