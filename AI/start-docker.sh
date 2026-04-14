@@ -71,13 +71,21 @@ if [[ ! -f "$ENV_FILE" ]]; then
   cp "$ENV_EXAMPLE" "$ENV_FILE"
 fi
 
-# Prompt for any placeholder values
+# Ensure all keys from .env.example are present and filled in .env
 changed=0
 while IFS= read -r line; do
   [[ "$line" =~ ^#.*$ || -z "$line" ]] && continue
   key="${line%%=*}"
-  value="${line#*=}"
-  if [[ "$value" == *"your_"* || "$value" == *"_here"* || -z "$value" ]]; then
+  example_value="${line#*=}"
+
+  # Add key to .env if it's missing entirely
+  if ! grep -q "^${key}=" "$ENV_FILE" 2>/dev/null; then
+    echo "$key=$example_value" >> "$ENV_FILE"
+  fi
+
+  current_value=$(grep -m1 "^${key}=" "$ENV_FILE" | cut -d= -f2-)
+
+  if [[ "$current_value" == *"your_"* || "$current_value" == *"_here"* || -z "$current_value" ]]; then
     echo ""
     echo "==> Value needed for: $key"
     read -rp "    Enter $key: " new_value </dev/tty
@@ -85,7 +93,7 @@ while IFS= read -r line; do
     sed -i "s|^$key=.*|$key=$escaped_value|" "$ENV_FILE"
     changed=1
   fi
-done < "$ENV_FILE"
+done < "$ENV_EXAMPLE"
 
 if [[ "$changed" -eq 1 ]]; then
   echo "==> .env configured."
