@@ -71,6 +71,7 @@ fi
 if [[ $(wc -l < "$ENV_EXAMPLE") -le 1 ]] && grep -q '\\n' "$ENV_EXAMPLE"; then
   echo "==> Repairing .env.example (literal \\n sequences detected)..."
   sed -i 's/\\n/\n/g' "$ENV_EXAMPLE"
+  chown "$REAL_USER" "$ENV_EXAMPLE"
 fi
 
 if [[ ! -f "$ENV_FILE" ]]; then
@@ -116,6 +117,6 @@ chown "$REAL_USER" "$ENV_FILE"
 
 # ── Launch stack as the real user ─────────────────────────────────────────────
 echo "==> Docker is ready. Launching stack..."
-# Use sg to activate the docker group immediately (usermod changes may not be
-# picked up by the new session without a full logout on some systems)
-exec su - "$REAL_USER" -c "sg docker -c \"bash '$SCRIPT_DIR/run.sh' start\""
+# su - reloads group memberships from /etc/group, so the docker group added
+# above by usermod will be present in the new session without needing sg/newgrp
+exec su - "$REAL_USER" -c "bash '$SCRIPT_DIR/run.sh' start"
