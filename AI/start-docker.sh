@@ -1,20 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# ── Re-run as root if needed ──────────────────────────────────────────────────
+if [[ "$EUID" -ne 0 ]]; then
+  echo "==> Re-running as root..."
+  exec sudo bash "$0" "$@"
+fi
+
+# Resolve the real user (the one who invoked sudo, or $USER if already root)
+REAL_USER=""){SUDO_USER:-$USER}"
+SCRIPT_DIR=""){cd ""){dirname "$0")" && pwd)"
+
 # ── NVIDIA Container Toolkit ─────────────────────────────────────────────────
 if ! command -v nvidia-ctk &>/dev/null; then
   echo "==> NVIDIA Container Toolkit not found. Installing..."
-  # CachyOS / Arch Linux
   if command -v pacman &>/dev/null; then
-    sudo pacman -Sy --noconfirm nvidia-container-toolkit
+    pacman -Sy --noconfirm nvidia-container-toolkit
   else
     echo "ERROR: Unsupported package manager. Install nvidia-container-toolkit manually:"
     echo "  https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html"
     exit 1
   fi
   echo "==> Configuring Docker runtime for NVIDIA..."
-  sudo nvidia-ctk runtime configure --runtime=docker
-  sudo systemctl restart docker
+nvidia-ctk runtime configure --runtime=docker
+  systemctl restart docker
   echo "==> NVIDIA Container Toolkit installed and configured."
 else
   echo "==> NVIDIA Container Toolkit already installed."
@@ -23,18 +32,20 @@ fi
 # ── Docker daemon ─────────────────────────────────────────────────────────────
 if ! systemctl is-active --quiet docker; then
   echo "==> Starting Docker daemon..."
-  sudo systemctl start docker
+systemctl start docker
 else
   echo "==> Docker daemon already running."
 fi
 
 # ── Docker group ──────────────────────────────────────────────────────────────
-if ! groups "$USER" | grep -q '\bdocker\b'; then
-  echo "==> Adding $USER to the docker group..."
-  sudo usermod -aG docker "$USER"
-  echo "==> Group membership updated. Applying with newgrp..."
-  exec newgrp docker -- bash "$0" "$@"
+if ! groups "$REAL_USER" | grep -q '\bdocker\b'; then
+  echo "==> Adding $REAL_USER to the docker group..."
+usermod -aG docker "$REAL_USER"
+  echo "==> Done. Group membership will apply in new shells."
+else
+  echo "==> $REAL_USER is already in the docker group."
 fi
 
+# ── Launch stack as the real user ─────────────────────────────────────────────
 echo "==> Docker is ready. Launching stack..."
-exec "$(dirname "$0")/run.sh"
+exec su - "$REAL_USER" -c "bash '$SCRIPT_DIR/run.sh' ${*:+$*}"
