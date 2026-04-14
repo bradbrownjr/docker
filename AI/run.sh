@@ -78,15 +78,16 @@ if ! docker compose version &>/dev/null; then
 fi
 
 _docker_err=$(docker info 2>&1 || true)
-if [[ -n "$_docker_err" ]] && ! docker info &>/dev/null 2>&1; then
+if ! docker info &>/dev/null 2>&1; then
   if echo "$_docker_err" | grep -qi "permission denied"; then
-    # Group not active in this session — re-exec under sg docker
-    if grep -qE "^docker:" /etc/group 2>/dev/null; then
+    # Group not active in this session — re-exec under sg docker once
+    if [[ -z "${_DOCKER_GROUP_RELAUNCHED:-}" ]] && grep -qE "^docker:" /etc/group 2>/dev/null; then
       echo "==> Activating docker group for this session..."
-      exec sg docker -c "bash '$0' $*"
+      export _DOCKER_GROUP_RELAUNCHED=1
+      exec sg docker -- bash "$0" "$@"
     fi
     echo "ERROR: Permission denied on Docker socket."
-    echo "  Run: sudo usermod -aG docker \$USER  then log out and back in"
+    echo "  Run: newgrp docker   (activates the group without logging out)"
     exit 1
   else
     # Daemon not running — start-docker.sh handles this

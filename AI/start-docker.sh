@@ -149,6 +149,7 @@ chown "$REAL_USER" "$ENV_FILE"
 
 # ── Launch stack as the real user ─────────────────────────────────────────────
 echo "==> Docker is ready. Launching stack..."
-# su - reloads group memberships from /etc/group, so the docker group added
-# above by usermod will be present in the new session without needing sg/newgrp
-exec su - "$REAL_USER" -c "bash '$SCRIPT_DIR/run.sh' start"
+# Since we are already root, sudo -u/-g sets user and explicitly activates the
+# docker group without needing a new PAM login session (su - doesn't work on
+# Fedora Atomic/Bazzite for freshly-added groups)
+exec sudo -u "$REAL_USER" -g docker -- bash "$SCRIPT_DIR/run.sh" start
