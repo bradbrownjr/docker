@@ -62,11 +62,18 @@ else
 fi
 
 # ── .env setup ────────────────────────────────────────────────────────────────
+if [[ ! -f "$ENV_EXAMPLE" ]]; then
+  echo "ERROR: $ENV_EXAMPLE not found. Cannot auto-configure .env."
+  exit 1
+fi
+
+# Repair .env.example if it was corrupted with literal \n sequences (single-line file)
+if [[ $(wc -l < "$ENV_EXAMPLE") -le 1 ]] && grep -q '\\n' "$ENV_EXAMPLE"; then
+  echo "==> Repairing .env.example (literal \\n sequences detected)..."
+  sed -i 's/\\n/\n/g' "$ENV_EXAMPLE"
+fi
+
 if [[ ! -f "$ENV_FILE" ]]; then
-  if [[ ! -f "$ENV_EXAMPLE" ]]; then
-    echo "ERROR: $ENV_EXAMPLE not found. Cannot create .env."
-    exit 1
-  fi
   echo "==> .env not found. Creating from .env.example..."
   cp "$ENV_EXAMPLE" "$ENV_FILE"
 fi
@@ -103,4 +110,6 @@ fi
 
 # ── Launch stack as the real user ─────────────────────────────────────────────
 echo "==> Docker is ready. Launching stack..."
-exec su - "$REAL_USER" -c "bash '$SCRIPT_DIR/run.sh' start"
+# Use sg to activate the docker group immediately (usermod changes may not be
+# picked up by the new session without a full logout on some systems)
+exec su - "$REAL_USER" -c "sg docker -c \"bash '$SCRIPT_DIR/run.sh' start\""
