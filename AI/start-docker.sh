@@ -111,6 +111,9 @@ else
   echo "==> .env already configured."
 fi
 
+# Ensure .env is owned by the real user, not root
+chown "$REAL_USER" "$ENV_FILE"
+
 # ── Launch stack as the real user ─────────────────────────────────────────────
 echo "==> Docker is ready. Launching stack..."
 # Use sg to activate the docker group immediately (usermod changes may not be
