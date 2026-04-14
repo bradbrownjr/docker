@@ -10,7 +10,7 @@
 #   ./run.sh free-vram    — release GPU memory held by ComfyUI (run this before generating images if Ollama times out)
 set -euo pipefail
 
-DIR="$(cd ""$(dirname "$0")" && pwd)"
+DIR="$(cd "$(dirname "$0")" && pwd)"
 COMPOSE="docker compose -f $DIR/docker-compose.ai-stack.yml --env-file $DIR/.env"
 
 if [[ ! -f "$DIR/.env" ]]; then
