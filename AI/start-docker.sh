@@ -38,6 +38,20 @@ else
   echo "==> Docker daemon already running."
 fi
 
+# ── Docker Compose V2 ───────────────────────────────────────────────────────
+if ! docker compose version &>/dev/null; then
+  echo "==> Docker Compose V2 plugin not found. Installing..."
+  COMPOSE_PLUGIN_DIR="/usr/local/lib/docker/cli-plugins"
+  mkdir -p "$COMPOSE_PLUGIN_DIR"
+  ARCH=$(uname -m)
+  COMPOSE_URL="https://github.com/docker/compose/releases/latest/download/docker-compose-linux-${ARCH}"
+  curl -fsSL "$COMPOSE_URL" -o "$COMPOSE_PLUGIN_DIR/docker-compose"
+  chmod +x "$COMPOSE_PLUGIN_DIR/docker-compose"
+  echo "==> Docker Compose V2 installed: $(docker compose version)"
+else
+  echo "==> Docker Compose V2 already installed."
+fi
+
 # ── Docker group ──────────────────────────────────────────────────────────────
 if ! groups "$REAL_USER" | grep -q '\bdocker\b'; then
   echo "==> Adding $REAL_USER to the docker group..."

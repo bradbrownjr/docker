@@ -9,6 +9,13 @@ if [[ ! -f "$DIR/.env" ]]; then
   exit 1
 fi
 
+if ! docker compose version &>/dev/null; then
+  echo "ERROR: Docker Compose V2 plugin not found."
+  echo "  Run: bash '$DIR/start-docker.sh'  (it will install it automatically)"
+  echo "  Or manually: https://docs.docker.com/compose/install/"
+  exit 1
+fi
+
 COMPOSE=(docker compose -f "$DIR/docker-compose.ai-stack.yml" --env-file "$DIR/.env")
 
 print_urls() {
