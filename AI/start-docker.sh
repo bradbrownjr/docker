@@ -31,6 +31,10 @@ else
 fi
 
 # ── Docker daemon ─────────────────────────────────────────────────────────────
+if ! systemctl is-enabled --quiet docker 2>/dev/null; then
+  echo "==> Enabling Docker to start on boot..."
+  systemctl enable docker
+fi
 if ! systemctl is-active --quiet docker; then
   echo "==> Starting Docker daemon..."
   systemctl start docker

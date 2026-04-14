@@ -77,17 +77,24 @@ if ! docker compose version &>/dev/null; then
   exit 1
 fi
 
-if ! docker info &>/dev/null 2>&1; then
-  # If we're in the docker group in /etc/group but it's not active in this
-  # session (e.g. just added by start-docker.sh), re-exec under sg to activate it
-  if grep -qE "^docker:.*\b${USER}\b" /etc/group 2>/dev/null && ! groups | grep -qw docker; then
-    echo "==> Activating docker group for this session..."
-    exec sg docker -c "bash '$0' $*"
+_docker_err=$(docker info 2>&1 || true)
+if [[ -n "$_docker_err" ]] && ! docker info &>/dev/null 2>&1; then
+  if echo "$_docker_err" | grep -qi "permission denied"; then
+    # Group not active in this session — re-exec under sg docker
+    if grep -qE "^docker:" /etc/group 2>/dev/null; then
+      echo "==> Activating docker group for this session..."
+      exec sg docker -c "bash '$0' $*"
+    fi
+    echo "ERROR: Permission denied on Docker socket."
+    echo "  Run: sudo usermod -aG docker \$USER  then log out and back in"
+    exit 1
+  else
+    # Daemon not running — start-docker.sh handles this
+    echo "ERROR: Docker daemon is not running."
+    echo "  Run: bash '$DIR/start-docker.sh'  (starts the daemon and launches the stack)"
+    echo "  Or manually: sudo systemctl start docker"
+    exit 1
   fi
-  echo "ERROR: Cannot connect to the Docker daemon."
-  echo "  • Docker not running? Try: sudo systemctl start docker"
-  echo "  • Not in docker group? Run: sudo usermod -aG docker \$USER, then log out and back in"
-  exit 1
 fi
 
 COMPOSE=(docker compose -f "$DIR/docker-compose.ai-stack.yml" --env-file "$DIR/.env")
