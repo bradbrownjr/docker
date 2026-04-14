@@ -2,17 +2,58 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
+ENV_FILE="$DIR/.env"
+ENV_EXAMPLE="$DIR/.env.example"
 
-if [[ ! -f "$DIR/.env" ]]; then
-  echo "ERROR: .env not found. Copy .env.example and fill in your HF_TOKEN:"
-  echo "  cp $DIR/.env.example $DIR/.env"
-  exit 1
+# Repair .env.example if corrupted with literal \n sequences (single-line file)
+if [[ -f "$ENV_EXAMPLE" ]] && [[ $(wc -l < "$ENV_EXAMPLE") -le 1 ]] && grep -q '\\n' "$ENV_EXAMPLE"; then
+  sed -i 's/\\n/\n/g' "$ENV_EXAMPLE"
+fi
+
+# Create .env if missing
+if [[ ! -f "$ENV_FILE" ]]; then
+  if [[ ! -f "$ENV_EXAMPLE" ]]; then
+    echo "ERROR: No .env or .env.example found in $DIR."
+    exit 1
+  fi
+  echo "==> .env not found. Creating from .env.example..."
+  cp "$ENV_EXAMPLE" "$ENV_FILE"
+fi
+
+# Prompt for any missing or placeholder values
+# Read the file via fd 3 so stdin stays connected to the terminal for prompts
+if [[ -f "$ENV_EXAMPLE" ]]; then
+  exec 3< "$ENV_EXAMPLE"
+  while IFS= read -r line <&3; do
+    [[ "$line" =~ ^#.*$ || -z "$line" ]] && continue
+    key="${line%%=*}"
+    example_value="${line#*=}"
+    if ! grep -q "^${key}=" "$ENV_FILE" 2>/dev/null; then
+      echo "$key=$example_value" >> "$ENV_FILE"
+    fi
+    current_value=$(grep -m1 "^${key}=" "$ENV_FILE" | cut -d= -f2-)
+    if [[ "$current_value" == *"your_"* || "$current_value" == *"_here"* || -z "$current_value" ]]; then
+      echo ""
+      echo "==> Value needed for: $key"
+      read -rp "    Enter $key: " new_value
+      escaped_value="$(printf '%s\n' "$new_value" | sed 's/[\/&]/\\&/g')"
+      sed -i "s|^$key=.*|$key=$escaped_value|" "$ENV_FILE"
+    fi
+  done
+  exec 3<&-
 fi
 
 if ! docker compose version &>/dev/null; then
   echo "ERROR: Docker Compose V2 plugin not found."
   echo "  Run: bash '$DIR/start-docker.sh'  (it will install it automatically)"
   echo "  Or manually: https://docs.docker.com/compose/install/"
+  exit 1
+fi
+
+if ! docker info &>/dev/null; then
+  echo "ERROR: Cannot connect to the Docker daemon."
+  echo "  • Docker not running? Try: sudo systemctl start docker"
+  echo "  • Just added to docker group? Run: newgrp docker  (then retry)"
   exit 1
 fi
 

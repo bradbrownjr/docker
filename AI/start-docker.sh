@@ -79,8 +79,10 @@ if [[ ! -f "$ENV_FILE" ]]; then
 fi
 
 # Ensure all keys from .env.example are present and filled in .env
+# Read the file via fd 3 so stdin stays connected to the terminal for prompts
 changed=0
-while IFS= read -r line; do
+exec 3< "$ENV_EXAMPLE"
+while IFS= read -r line <&3; do
   [[ "$line" =~ ^#.*$ || -z "$line" ]] && continue
   key="${line%%=*}"
   example_value="${line#*=}"
@@ -95,12 +97,13 @@ while IFS= read -r line; do
   if [[ "$current_value" == *"your_"* || "$current_value" == *"_here"* || -z "$current_value" ]]; then
     echo ""
     echo "==> Value needed for: $key"
-    read -rp "    Enter $key: " new_value </dev/tty
+    read -rp "    Enter $key: " new_value
     escaped_value="$(printf '%s\n' "$new_value" | sed 's/[\/&]/\\&/g')"
     sed -i "s|^$key=.*|$key=$escaped_value|" "$ENV_FILE"
     changed=1
   fi
-done < "$ENV_EXAMPLE"
+done
+exec 3<&-
 
 if [[ "$changed" -eq 1 ]]; then
   echo "==> .env configured."
