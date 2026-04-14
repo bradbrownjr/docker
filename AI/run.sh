@@ -10,8 +10,8 @@
 #   ./run.sh free-vram    — release GPU memory held by ComfyUI (run this before generating images if Ollama times out)
 set -euo pipefail
 
-DIR="$(cd "$(dirname "$0")" && pwd)"
-COMPOSE="docker compose -f $DIR/docker-compose.yml --env-file $DIR/.env"
+DIR="$(cd ""$(dirname "$0")" && pwd)"
+COMPOSE="docker compose -f $DIR/docker-compose.ai-stack.yml --env-file $DIR/.env"
 
 if [[ ! -f "$DIR/.env" ]]; then
   echo "ERROR: .env not found. Copy .env.example and fill in your HF_TOKEN:"
@@ -26,15 +26,15 @@ print_urls() {
   echo "    Ollama     →  http://localhost:11434"
   echo "    ComfyUI    →  http://localhost:8188"
   echo "    Kokoro TTS →  http://localhost:8880/docs"
-  echo "    WhisperX   →  http://localhost:9000/docs
-    SearXNG    →  http://localhost:8080"
+  echo "    WhisperX   →  http://localhost:9000/docs"
+  echo "    SearXNG    →  http://localhost:8080"
   echo ""
 }
 
 print_status() {
   echo ""
   echo "  Container status:"
-  docker compose -f "$DIR/docker-compose.yml" ps --format "table {{.Name}}\t{{.Status}}" 2>/dev/null || true
+  docker compose -f "$DIR/docker-compose.ai-stack.yml" ps --format "table {{.Name}}	{{.Status}}" 2>/dev/null || true
   echo ""
 }
 
