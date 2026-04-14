@@ -9,7 +9,7 @@ fi
 
 # Resolve the real user (the one who invoked sudo, or $USER if already root)
 REAL_USER="${SUDO_USER:-$USER}"
-SCRIPT_DIR="$(cd ""$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # ── NVIDIA Container Toolkit ─────────────────────────────────────────────────
 if ! command -v nvidia-ctk &>/dev/null; then
@@ -48,4 +48,4 @@ fi
 
 # ── Launch stack as the real user ─────────────────────────────────────────────
 echo "==> Docker is ready. Launching stack..."
-exec su - "$REAL_USER" -c "bash '$SCRIPT_DIR/run.sh' ${*:+$*}
+exec su - "$REAL_USER" -c "bash '$SCRIPT_DIR/run.sh'"
