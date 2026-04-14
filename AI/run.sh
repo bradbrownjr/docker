@@ -34,7 +34,7 @@ print_urls() {
 print_status() {
   echo ""
   echo "  Container status:"
-  docker compose -f "$DIR/docker-compose.ai-stack.yml" ps --format "table {{.Name}}	{{.Status}}" 2>/dev/null || true
+  docker compose -f "$DIR/docker-compose.ai-stack.yml" ps --format "table {{.Name}}\t{{.Status}}" 2>/dev/null || true
   echo ""
 }
 
@@ -88,23 +88,23 @@ interactive() {
   read -rp "Choice [1-4]: " choice
 
   case "$choice" in
-    1) do_start ;; 
-    2) do_restart ;; 
-    3) do_stop ;; 
-    4) exit 0 ;; 
-    *) echo "Invalid choice."; exit 1 ;; 
+    1) do_start ;;  
+    2) do_restart ;;  
+    3) do_stop ;;  
+    4) exit 0 ;;  
+    *) echo "Invalid choice."; exit 1 ;;
   esac
 }
 
 case "${1:-interactive}" in
-  interactive) interactive ;;
-  start)       do_start ;;
-  restart)     do_restart ;; 
-  stop)        do_stop ;; 
+  interactive) interactive ;;  
+  start)       do_start ;;  
+  restart)     do_restart ;;  
+  stop)        do_stop ;;  
   pull)
     bash "$DIR/pull.sh"
     do_start
-    ;;
+    ;;  
   free-vram)
     echo "==> Freeing ComfyUI VRAM..."
     curl -s -X POST http://localhost:8188/api/free \
@@ -112,10 +112,10 @@ case "${1:-interactive}" in
       -d '{"unload_models": true, "free_memory": true}' >/dev/null
     FREE=$(docker exec ollama nvidia-smi --query-gpu=memory.free --format=csv,noheader 2>/dev/null || echo "unknown")
     echo "==> Done. VRAM free: $FREE"
-    ;; 
+    ;;  
   logs)
     $COMPOSE logs -f "${2:-}"
-    ;;
+    ;;  
   *)
     echo "Unknown command: $1"
     echo "Usage: $0 [start|restart|stop|pull|free-vram|logs [service]]"
