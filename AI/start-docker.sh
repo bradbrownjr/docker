@@ -149,7 +149,8 @@ chown "$REAL_USER" "$ENV_FILE"
 
 # ── Launch stack as the real user ─────────────────────────────────────────────
 echo "==> Docker is ready. Launching stack..."
-# Since we are already root, sudo -u/-g sets user and explicitly activates the
-# docker group without needing a new PAM login session (su - doesn't work on
-# Fedora Atomic/Bazzite for freshly-added groups)
-exec sudo -u "$REAL_USER" -g docker -- bash "$SCRIPT_DIR/run.sh" start
+# runuser is part of util-linux (available on Debian, Ubuntu, RHEL, Fedora,
+# Arch, Bazzite). It switches user from root without needing sudoers rules or
+# PAM authentication, and -g explicitly activates the docker group so freshly-
+# added group memberships work without a logout.
+exec runuser -u "$REAL_USER" -g docker -- bash "$SCRIPT_DIR/run.sh" start
