@@ -61,7 +61,7 @@ services:
   comfyui:
     image: frefrik/comfyui-flux:latest
     container_name: comfyui
-    command: bash /scripts/comfyui-gguf-start.sh
+    command: bash -c "chmod +x /scripts/comfyui-gguf-start.sh && bash /scripts/comfyui-gguf-start.sh"
     ports:
       - "8188:8188"
     volumes:
