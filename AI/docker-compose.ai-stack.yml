@@ -20,16 +20,16 @@ services:
               capabilities: [gpu]
 
   whisperx:
-    image: onerahmet/openai-whisper-asr-webservice:latest-gpu
+    image: ghcr.io/fedirz/faster-whisper-server:latest-cuda
     container_name: whisperx
     ports:
-      - "9000:9000"
+      - "9000:8000"
     volumes:
       - whisperx_cache:/root/.cache
     environment:
-      - ASR_ENGINE=whisperx
-      - ASR_MODEL=base
-      - ASR_DEVICE=cuda
+      - WHISPER__MODEL=Systran/faster-whisper-large-v3
+      - WHISPER__INFERENCE_DEVICE=cuda
+      - WHISPER__COMPUTE_TYPE=float16
     restart: "no"
     deploy:
       resources:
@@ -114,11 +114,11 @@ services:
       - AUDIO_TTS_OPENAI_API_KEY=not-needed
       - AUDIO_TTS_MODEL=kokoro
       - AUDIO_TTS_VOICE=af_bella
-      # STT via WhisperX
+      # STT via Whisper (faster-whisper-server / speaches)
       - AUDIO_STT_ENGINE=openai
-      - AUDIO_STT_OPENAI_API_BASE_URL=http://whisperx:9000/v1
+      - AUDIO_STT_OPENAI_API_BASE_URL=http://whisperx:8000/v1
       - AUDIO_STT_OPENAI_API_KEY=not-needed
-      - AUDIO_STT_MODEL=whisper-1
+      - AUDIO_STT_MODEL=Systran/faster-whisper-large-v3
       # Web search via SearXNG
       - ENABLE_RAG_WEB_SEARCH=true
       - RAG_WEB_SEARCH_ENGINE=searxng
