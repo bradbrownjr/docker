@@ -101,14 +101,18 @@ fi
 COMPOSE=(docker compose -f "$DIR/docker-compose.ai-stack.yml" --env-file "$DIR/.env")
 
 print_urls() {
+  local host
+  host=$(ip route get 1.1.1.1 2>/dev/null | awk '/src/{for(i=1;i<=NF;i++) if($i=="src") {print $(i+1); exit}}')
+  [[ -z "$host" ]] && host=$(hostname -I 2>/dev/null | awk '{print $1}')
+  [[ -z "$host" ]] && host="localhost"
   echo ""
   echo "  Services:"
-  echo "    OpenWebUI  ->  http://localhost:3000"
-  echo "    Ollama     ->  http://localhost:11434"
-  echo "    ComfyUI    ->  http://localhost:8188"
-  echo "    Kokoro TTS   ->  http://localhost:8880/docs"
-  echo "    Speaches STT ->  http://localhost:9000/docs"
-  echo "    SearXNG    ->  http://localhost:8080"
+  echo "    OpenWebUI    ->  http://${host}:3000"
+  echo "    Ollama       ->  http://${host}:11434"
+  echo "    ComfyUI      ->  http://${host}:8188"
+  echo "    Kokoro TTS   ->  http://${host}:8880/docs"
+  echo "    Speaches STT ->  http://${host}:9000/docs"
+  echo "    SearXNG      ->  http://${host}:8080"
   echo ""
 }
 
