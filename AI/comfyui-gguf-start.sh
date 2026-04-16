@@ -6,6 +6,12 @@ MODELS_DIR="$COMFYUI_DIR/models"
 CUSTOM_NODES_DIR="$COMFYUI_DIR/custom_nodes"
 PYTHON="$(command -v python3 || command -v python)"
 
+# ── Copy workflow into volume (build-time COPY is hidden by the volume) ──────
+WORKFLOW_DIR="$COMFYUI_DIR/user/default/workflows"
+mkdir -p "$WORKFLOW_DIR"
+cp -f /scripts/flux2-klein-workflow.json "$WORKFLOW_DIR/flux2-klein.json"
+echo "==> Flux2-Klein workflow installed."
+
 # ── Install ComfyUI-GGUF custom node ─────────────────────────────────────────
 if [[ ! -d "$CUSTOM_NODES_DIR/ComfyUI-GGUF" ]]; then
   echo "==> Installing ComfyUI-GGUF custom node..."
