@@ -59,21 +59,16 @@ services:
               capabilities: [gpu]
 
   comfyui:
-    image: frefrik/comfyui-flux:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.comfyui
+    image: comfyui-flux2-klein:local
     container_name: comfyui
-    command: bash /scripts/comfyui-gguf-start.sh
     ports:
       - "8188:8188"
     volumes:
       - comfyui_app:/app
       - comfyui_models:/app/models
-    configs:
-      - source: comfyui_start
-        target: /scripts/comfyui-gguf-start.sh
-        mode: 0755
-      - source: flux2_klein_workflow
-        target: /app/user/default/workflows/flux2-klein.json
-        mode: 0644
     dns:
       - 10.6.26.1
       - 8.8.8.8
@@ -146,12 +141,6 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
-
-configs:
-  comfyui_start:
-    file: ./comfyui-gguf-start.sh
-  flux2_klein_workflow:
-    file: ./flux2-klein-workflow.json
 
 volumes:
   searxng_data:

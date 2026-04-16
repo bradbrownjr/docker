@@ -1,0 +1,5 @@
+FROM frefrik/comfyui-flux:latest
+COPY comfyui-gguf-start.sh /scripts/comfyui-gguf-start.sh
+COPY flux2-klein-workflow.json /app/user/default/workflows/flux2-klein.json
+RUN chmod +x /scripts/comfyui-gguf-start.sh
+CMD ["bash", "/scripts/comfyui-gguf-start.sh"]
