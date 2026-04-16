@@ -61,14 +61,19 @@ services:
   comfyui:
     image: frefrik/comfyui-flux:latest
     container_name: comfyui
-    command: bash -c "chmod +x /scripts/comfyui-gguf-start.sh && bash /scripts/comfyui-gguf-start.sh"
+    command: bash /scripts/comfyui-gguf-start.sh
     ports:
       - "8188:8188"
     volumes:
       - comfyui_app:/app
       - comfyui_models:/app/models
-      - ./comfyui-gguf-start.sh:/scripts/comfyui-gguf-start.sh
-      - ./flux2-klein-workflow.json:/app/user/default/workflows/flux2-klein.json:ro
+    configs:
+      - source: comfyui_start
+        target: /scripts/comfyui-gguf-start.sh
+        mode: 0755
+      - source: flux2_klein_workflow
+        target: /app/user/default/workflows/flux2-klein.json
+        mode: 0644
     dns:
       - 10.6.26.1
       - 8.8.8.8
@@ -141,6 +146,12 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+
+configs:
+  comfyui_start:
+    file: ./comfyui-gguf-start.sh
+  flux2_klein_workflow:
+    file: ./flux2-klein-workflow.json
 
 volumes:
   searxng_data:
