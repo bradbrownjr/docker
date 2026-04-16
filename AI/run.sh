@@ -143,13 +143,13 @@ open_browser() {
 
 do_start() {
   echo "==> Starting any stopped/missing containers..."
-  "${COMPOSE[@]}" up -d
+  "${COMPOSE[@]}" up -d --remove-orphans
   open_browser
 }
 
 do_restart() {
   echo "==> Restarting all containers..."
-  "${COMPOSE[@]}" restart
+  "${COMPOSE[@]}" up -d --force-recreate --remove-orphans
   open_browser
 }
 
