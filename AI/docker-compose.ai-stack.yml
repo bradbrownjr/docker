@@ -69,9 +69,6 @@ services:
     volumes:
       - comfyui_app:/app
       - comfyui_models:/app/models
-    dns:
-      - 10.6.26.1
-      - 8.8.8.8
     environment:
       - HF_TOKEN=${HF_TOKEN}
       - LOW_VRAM=${LOW_VRAM:-false}

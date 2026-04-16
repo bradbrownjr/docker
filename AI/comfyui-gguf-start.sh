@@ -20,7 +20,7 @@ if [[ ! -d "$CUSTOM_NODES_DIR/ComfyUI-GGUF" ]]; then
   if ! "$PYTHON" -m pip --version &>/dev/null; then
     echo "==> Bootstrapping pip..."
     "$PYTHON" -m ensurepip 2>/dev/null \
-      || curl -fsSL https://bootstrap.pypa.io/get-pip.py | "$PYTHON"
+      || "$PYTHON" -c "import urllib.request; exec(urllib.request.urlopen('https://bootstrap.pypa.io/get-pip.py').read())"
   fi
   "$PYTHON" -m pip install -q \
     -r "$CUSTOM_NODES_DIR/ComfyUI-GGUF/requirements.txt"
@@ -38,33 +38,37 @@ _download() {
   fi
   echo "==> Downloading $(basename "$dest")..."
   mkdir -p "$(dirname "$dest")"
-  if command -v curl &>/dev/null; then
-    local curl_args=("-fL" "-o" "${dest}.tmp")
-    [[ -n "${HF_TOKEN:-}" ]] && curl_args+=("-H" "Authorization: Bearer ${HF_TOKEN}")
-    curl "${curl_args[@]}" "$url"
-  elif command -v wget &>/dev/null; then
-    local wget_args=("-q" "-O" "${dest}.tmp")
-    [[ -n "${HF_TOKEN:-}" ]] && wget_args+=("--header=Authorization: Bearer ${HF_TOKEN}")
-    wget "${wget_args[@]}" "$url"
-  else
-    "$PYTHON" -c "
-import urllib.request, os, sys
+  "$PYTHON" -c "
+import urllib.request, sys, os
 url, dest = sys.argv[1], sys.argv[2]
+tmp = dest + '.tmp'
 req = urllib.request.Request(url)
 token = os.environ.get('HF_TOKEN', '')
 if token:
-    req.add_header('Authorization', f'Bearer {token}')
-urllib.request.urlretrieve(url, dest, reporthook=lambda b,bs,ts: print(f'\r  {b*bs/(1024**2):.0f} MB', end='', flush=True) if ts>0 else None)
-print()
-" "$url" "${dest}.tmp"
-  fi
-  if [[ -f "${dest}.tmp" ]]; then
-    mv "${dest}.tmp" "$dest"
-    echo "==> Done: $(basename "$dest")"
-  else
-    echo "ERROR: Failed to download $(basename "$dest")"
-    exit 1
-  fi
+    req.add_header('Authorization', 'Bearer ' + token)
+try:
+    with urllib.request.urlopen(req) as resp, open(tmp, 'wb') as f:
+        total = int(resp.headers.get('Content-Length', 0))
+        downloaded = 0
+        while True:
+            chunk = resp.read(1024 * 1024)
+            if not chunk:
+                break
+            f.write(chunk)
+            downloaded += len(chunk)
+            if total:
+                pct = downloaded * 100 // total
+                mb = downloaded // (1024*1024)
+                print(f'\r  {mb} MB ({pct}%)', end='', flush=True)
+        print()
+    os.rename(tmp, dest)
+except Exception as e:
+    if os.path.exists(tmp):
+        os.remove(tmp)
+    print(f'ERROR: {e}', file=sys.stderr)
+    sys.exit(1)
+" "$url" "$dest"
+  echo "==> Done: $(basename "$dest")"
 }
 
 # UNet — FLUX.2-Klein 4B Q5_K_S GGUF (Apache 2.0, unsloth)

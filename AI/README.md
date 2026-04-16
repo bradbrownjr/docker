@@ -8,18 +8,17 @@ A self-hosted, GPU-accelerated AI stack powered by Docker Compose. Includes a ch
 |---|---|---|
 | [Open WebUI](https://github.com/open-webui/open-webui) | `3000` | Chat interface for all services |
 | [Ollama](https://ollama.com) | `11434` | Local LLM inference |
-| [ComfyUI + Flux](https://github.com/comfyanonymous/ComfyUI) | `8188` | Image generation |
+| [ComfyUI](https://github.com/comfyanonymous/ComfyUI) + FLUX.2-Klein 4B | `8188` | Image generation (GGUF quantized) |
 | [Kokoro TTS](https://github.com/remsky/kokoro-fastapi) | `8880` | Text-to-speech |
-| [WhisperX](https://github.com/onerahmet/openai-whisper-asr-webservice) | `9000` | Speech-to-text |
+| [Speaches](https://github.com/speaches-ai/speaches) (Whisper) | `9000` | Speech-to-text |
 | [SearXNG](https://searxng.org) | `8080` | Private web search |
 
 ## Prerequisites
 
 - **OS:** Linux — tested on CachyOS/Arch, Bazzite (Fedora Atomic), Debian/Ubuntu
-- **GPU:** NVIDIA GPU with CUDA support
+- **GPU:** NVIDIA GPU with CUDA support (8 GB+ VRAM recommended)
 - **Docker:** Docker Engine + Docker Compose v2 (installed automatically by `start-docker.sh` if missing)
 - **NVIDIA Container Toolkit:** Installed and configured automatically by `start-docker.sh` on Arch-based systems
-- **Hugging Face Token:** Required for ComfyUI/Flux model downloads — get one at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
 
 ## Getting Started
 
@@ -41,23 +40,28 @@ That's it. The script handles everything:
 - Enables and starts the Docker daemon
 - Installs Docker Compose V2 if missing
 - Adds your user to the `docker` group
-- Creates `.env` from `.env.example` and prompts for any required values (including your `HF_TOKEN`)
-- Launches the full stack
-
-> **Note:** Manual `cp .env.example .env` and `bash pull.sh` steps are no longer required — `start-docker.sh` handles both.
+- Creates `.env` from `.env.example` and prompts for any required values
+- Builds the custom ComfyUI image and launches the full stack
 
 ### First startup
 
-The first run will be slow — ComfyUI downloads Flux model weights from Hugging Face on first start (can take 10–30 minutes depending on your connection). All other services start immediately. Subsequent starts are fast.
+The first run will be slow — ComfyUI automatically downloads FLUX.2-Klein model weights on first start (~5 GB total, 10–30 minutes depending on connection):
+- `flux-2-klein-4b-Q5_K_S.gguf` (~2.9 GB) — UNet from [unsloth](https://huggingface.co/unsloth/FLUX.2-klein-4B-GGUF)
+- `qwen_3_4b_fp4_flux2.safetensors` (~3.7 GB) — Text encoder from [Comfy-Org](https://huggingface.co/Comfy-Org/vae-text-encorder-for-flux-klein-4b)
+- `flux2-vae.safetensors` (~300 MB) — VAE from [Comfy-Org](https://huggingface.co/Comfy-Org/vae-text-encorder-for-flux-klein-4b)
+
+It also installs the [ComfyUI-GGUF](https://github.com/city96/ComfyUI-GGUF) custom node. All subsequent starts are fast.
+
+All model files are Apache 2.0 licensed and do not require a HuggingFace token or license acceptance.
 
 **You still need to pull an LLM model for chat.** After the stack is up, either:
-- Open WebUI at http://localhost:3000 → Admin → Models → pull a model
+- Open WebUI → Admin → Models → pull a model
 - Or from the terminal:
   ```bash
   docker exec -it ollama ollama pull llama3.2
   ```
 
-All integrations (image generation, TTS, STT, web search) are pre-wired and ready without any additional configuration.
+All integrations (image generation, TTS, STT, web search) are pre-wired and ready without any additional configuration. OpenWebUI is pre-configured with the FLUX.2-Klein ComfyUI workflow.
 
 ## Managing the Stack
 
@@ -78,7 +82,7 @@ bash run.sh free-vram    # Free GPU memory held by ComfyUI
 
 ### Available service names for `logs`
 
-`ollama` · `whisperx` · `kokoro` · `comfyui` · `openwebui` · `searxng`
+`ollama` · `speaches` · `kokoro` · `comfyui` · `openwebui` · `searxng`
 
 ## Service URLs
 
@@ -88,13 +92,15 @@ bash run.sh free-vram    # Free GPU memory held by ComfyUI
 | Ollama API | http://localhost:11434 |
 | ComfyUI | http://localhost:8188 |
 | Kokoro TTS (docs) | http://localhost:8880/docs |
-| WhisperX (docs) | http://localhost:9000/docs |
+| Speaches STT (docs) | http://localhost:9000/docs |
 | SearXNG | http://localhost:8080 |
 
 ## Tips
 
 - **Low VRAM?** Set `LOW_VRAM=true` in your `.env` file before starting.
 - **Image generation failing?** ComfyUI and Ollama can contend for GPU memory. Run `bash run.sh free-vram` to release ComfyUI's VRAM before generating images.
-- **First startup is slow** — ComfyUI downloads Flux model weights on first run. Subsequent starts are much faster.
+- **First startup is slow** — ComfyUI downloads FLUX.2-Klein model weights on first run (~5 GB). Subsequent starts are much faster.
 - **Ollama has no models by default** — pull one after the stack is up (see Getting Started above).
 - **Docker group not active?** If `run.sh` can't reach the Docker socket, it will attempt to activate the group automatically. If that fails, run `newgrp docker` in your shell and retry.
+- **ComfyUI image is built locally** — `start-docker.sh` and `run.sh` handle `docker compose build` automatically. If you change `comfyui-gguf-start.sh` or `flux2-klein-workflow.json`, rebuild with `docker compose -f docker-compose.ai-stack.yml build comfyui`.
+- **Service URLs show LAN IP** — `run.sh` auto-detects the host's LAN IP so URLs work from other machines on the network.

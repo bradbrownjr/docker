@@ -146,12 +146,16 @@ open_browser() {
 }
 
 do_start() {
+  echo "==> Building custom images (if needed)..."
+  "${COMPOSE[@]}" build
   echo "==> Starting any stopped/missing containers..."
   "${COMPOSE[@]}" up -d --remove-orphans
   open_browser
 }
 
 do_restart() {
+  echo "==> Building custom images (if needed)..."
+  "${COMPOSE[@]}" build
   echo "==> Restarting all containers..."
   "${COMPOSE[@]}" up -d --force-recreate --remove-orphans
   open_browser
