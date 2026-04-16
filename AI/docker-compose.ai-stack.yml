@@ -30,6 +30,7 @@ services:
       - WHISPER__MODEL=Systran/faster-whisper-large-v3
       - WHISPER__INFERENCE_DEVICE=cuda
       - WHISPER__COMPUTE_TYPE=float16
+      - STT_MODEL_TTL=0
     restart: "no"
     deploy:
       resources:
