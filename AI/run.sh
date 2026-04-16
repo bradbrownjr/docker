@@ -106,8 +106,8 @@ print_urls() {
   echo "    OpenWebUI  ->  http://localhost:3000"
   echo "    Ollama     ->  http://localhost:11434"
   echo "    ComfyUI    ->  http://localhost:8188"
-  echo "    Kokoro TTS ->  http://localhost:8880/docs"
-  echo "    WhisperX   ->  http://localhost:9000/docs"
+  echo "    Kokoro TTS   ->  http://localhost:8880/docs"
+  echo "    Speaches STT ->  http://localhost:9000/docs"
   echo "    SearXNG    ->  http://localhost:8080"
   echo ""
 }
@@ -126,10 +126,12 @@ open_browser() {
     if curl -sf "$url" >/dev/null 2>&1; then
       echo "==> OpenWebUI is up."
       print_urls
-      if command -v xdg-open &>/dev/null; then
-        xdg-open "$url"
-      elif command -v open &>/dev/null; then
-        open "$url"
+      if [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" ]]; then
+        if command -v xdg-open &>/dev/null; then
+          xdg-open "$url" 2>/dev/null || true
+        elif command -v open &>/dev/null; then
+          open "$url" 2>/dev/null || true
+        fi
       fi
       return
     fi
