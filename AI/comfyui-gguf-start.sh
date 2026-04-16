@@ -9,19 +9,14 @@ PYTHON="$(command -v python3 || command -v python)"
 # ── Copy workflow into volume (build-time COPY is hidden by the volume) ──────
 WORKFLOW_DIR="$COMFYUI_DIR/user/default/workflows"
 mkdir -p "$WORKFLOW_DIR"
-if [[ -w "$WORKFLOW_DIR/flux2-klein.json" ]] || [[ ! -e "$WORKFLOW_DIR/flux2-klein.json" ]]; then
-  cp /scripts/flux2-klein-workflow.json "$WORKFLOW_DIR/flux2-klein.json"
-  echo "==> Flux2-Klein workflow installed."
-else
-  echo "==> Flux2-Klein workflow already present (skipping)."
-fi
+cp -f /scripts/flux2-klein-workflow.json "$WORKFLOW_DIR/flux2-klein.json"
+echo "==> Flux2-Klein workflow installed."
 
 # ── Install ComfyUI-GGUF custom node ─────────────────────────────────────────
 if [[ ! -d "$CUSTOM_NODES_DIR/ComfyUI-GGUF" ]]; then
   echo "==> Installing ComfyUI-GGUF custom node..."
   git clone --depth=1 https://github.com/city96/ComfyUI-GGUF \
     "$CUSTOM_NODES_DIR/ComfyUI-GGUF"
-  # Ensure pip is available (some base images ship venvs without it)
   if ! "$PYTHON" -m pip --version &>/dev/null; then
     echo "==> Bootstrapping pip..."
     "$PYTHON" -m ensurepip 2>/dev/null \

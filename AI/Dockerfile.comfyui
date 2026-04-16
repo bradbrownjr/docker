@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1
 FROM frefrik/comfyui-flux:latest
+USER root
 COPY --chmod=0755 comfyui-gguf-start.sh /scripts/comfyui-gguf-start.sh
 COPY --chmod=0644 flux2-klein-workflow.json /scripts/flux2-klein-workflow.json
 CMD ["bash", "/scripts/comfyui-gguf-start.sh"]
