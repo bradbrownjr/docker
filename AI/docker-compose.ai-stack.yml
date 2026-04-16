@@ -20,7 +20,7 @@ services:
               capabilities: [gpu]
 
   whisperx:
-    image: ghcr.io/fedirz/faster-whisper-server:latest-cuda
+    image: ghcr.io/speaches-ai/speaches:latest-cuda
     container_name: whisperx
     ports:
       - "9000:8000"
