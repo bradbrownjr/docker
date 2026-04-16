@@ -38,13 +38,30 @@ _download() {
   fi
   echo "==> Downloading $(basename "$dest")..."
   mkdir -p "$(dirname "$dest")"
-  local curl_args=("-fL" "-o" "${dest}.tmp")
-  [[ -n "${HF_TOKEN:-}" ]] && curl_args+=("-H" "Authorization: Bearer ${HF_TOKEN}")
-  if curl "${curl_args[@]}" "$url"; then
+  if command -v curl &>/dev/null; then
+    local curl_args=("-fL" "-o" "${dest}.tmp")
+    [[ -n "${HF_TOKEN:-}" ]] && curl_args+=("-H" "Authorization: Bearer ${HF_TOKEN}")
+    curl "${curl_args[@]}" "$url"
+  elif command -v wget &>/dev/null; then
+    local wget_args=("-q" "-O" "${dest}.tmp")
+    [[ -n "${HF_TOKEN:-}" ]] && wget_args+=("--header=Authorization: Bearer ${HF_TOKEN}")
+    wget "${wget_args[@]}" "$url"
+  else
+    "$PYTHON" -c "
+import urllib.request, os, sys
+url, dest = sys.argv[1], sys.argv[2]
+req = urllib.request.Request(url)
+token = os.environ.get('HF_TOKEN', '')
+if token:
+    req.add_header('Authorization', f'Bearer {token}')
+urllib.request.urlretrieve(url, dest, reporthook=lambda b,bs,ts: print(f'\r  {b*bs/(1024**2):.0f} MB', end='', flush=True) if ts>0 else None)
+print()
+" "$url" "${dest}.tmp"
+  fi
+  if [[ -f "${dest}.tmp" ]]; then
     mv "${dest}.tmp" "$dest"
     echo "==> Done: $(basename "$dest")"
   else
-    rm -f "${dest}.tmp"
     echo "ERROR: Failed to download $(basename "$dest")"
     exit 1
   fi
