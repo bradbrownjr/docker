@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+COMFYUI_DIR="/app"
+MODELS_DIR="$COMFYUI_DIR/models"
+CUSTOM_NODES_DIR="$COMFYUI_DIR/custom_nodes"
+PYTHON="$(command -v python3 || command -v python)"
+
+# ── Install ComfyUI-GGUF custom node ─────────────────────────────────────────
+if [[ ! -d "$CUSTOM_NODES_DIR/ComfyUI-GGUF" ]]; then
+  echo "==> Installing ComfyUI-GGUF custom node..."
+  git clone --depth=1 https://github.com/city96/ComfyUI-GGUF \
+    "$CUSTOM_NODES_DIR/ComfyUI-GGUF"
+  "$PYTHON" -m pip install -q \
+    -r "$CUSTOM_NODES_DIR/ComfyUI-GGUF/requirements.txt"
+  echo "==> ComfyUI-GGUF installed."
+else
+  echo "==> ComfyUI-GGUF already installed."
+fi
+
+# ── Download model files ──────────────────────────────────────────────────────
+_download() {
+  local dest="$1" url="$2"
+  if [[ -f "$dest" ]]; then
+    echo "==> Already present: $(basename "$dest")"
+    return 0
+  fi
+  echo "==> Downloading $(basename "$dest")..."
+  mkdir -p "$(dirname "$dest")"
+  local curl_args=("-fL" "-o" "${dest}.tmp")
+  [[ -n "${HF_TOKEN:-}" ]] && curl_args+=("-H" "Authorization: Bearer ${HF_TOKEN}")
+  if curl "${curl_args[@]}" "$url"; then
+    mv "${dest}.tmp" "$dest"
+    echo "==> Done: $(basename "$dest")"
+  else
+    rm -f "${dest}.tmp"
+    echo "ERROR: Failed to download $(basename "$dest")"
+    exit 1
+  fi
+}
+
+# UNet — FLUX.2-Klein 4B Q5_K_S GGUF (Apache 2.0, unsloth)
+_download \
+  "$MODELS_DIR/unet/flux-2-klein-4b-Q5_K_S.gguf" \
+  "https://huggingface.co/unsloth/FLUX.2-klein-4B-GGUF/resolve/main/flux-2-klein-4b-Q5_K_S.gguf"
+
+# Text encoder — fp4 quantized Qwen3-4B (Comfy-Org)
+_download \
+  "$MODELS_DIR/text_encoders/qwen_3_4b_fp4_flux2.safetensors" \
+  "https://huggingface.co/Comfy-Org/vae-text-encorder-for-flux-klein-4b/resolve/main/split_files/text_encoders/qwen_3_4b_fp4_flux2.safetensors"
+
+# VAE (Comfy-Org)
+_download \
+  "$MODELS_DIR/vae/flux2-vae.safetensors" \
+  "https://huggingface.co/Comfy-Org/vae-text-encorder-for-flux-klein-4b/resolve/main/split_files/vae/flux2-vae.safetensors"
+
+# ── Start ComfyUI ─────────────────────────────────────────────────────────────
+COMFYUI_ARGS=(--listen 0.0.0.0 --port 8188 --gpu-only)
+[[ "${LOW_VRAM:-false}" == "true" ]] && COMFYUI_ARGS+=(--lowvram)
+
+echo "==> Starting ComfyUI..."
+exec "$PYTHON" "$COMFYUI_DIR/main.py" "${COMFYUI_ARGS[@]}"

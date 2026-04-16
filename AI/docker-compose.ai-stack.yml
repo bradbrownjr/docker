@@ -61,20 +61,19 @@ services:
   comfyui:
     image: frefrik/comfyui-flux:latest
     container_name: comfyui
-    command: bash -c "sleep 5 && bash /scripts/entrypoint.sh"
+    command: bash /scripts/comfyui-gguf-start.sh
     ports:
       - "8188:8188"
     volumes:
       - comfyui_app:/app
       - comfyui_models:/app/models
+      - ./comfyui-gguf-start.sh:/scripts/comfyui-gguf-start.sh:ro
     dns:
       - 10.6.26.1
       - 8.8.8.8
     environment:
       - HF_TOKEN=${HF_TOKEN}
       - LOW_VRAM=${LOW_VRAM:-false}
-      - MODELS_DOWNLOAD=${FLUX_MODELS:-schnell}
-      - CLI_ARGS=--gpu-only
     restart: "no"
     deploy:
       resources:

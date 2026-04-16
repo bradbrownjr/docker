@@ -14,14 +14,14 @@
       "inputs": [],
       "outputs": [{"name": "CLIP", "type": "CLIP", "links": [2, 3]}],
       "title": "Load CLIP (GGUF - Qwen3)",
-      "widgets_values": ["Qwen3-4B-Q4_K_M.gguf", "flux2"]
+      "widgets_values": ["qwen_3_4b_fp4_flux2.safetensors", "flux2"]
     },
     {
       "id": 3, "type": "VAELoader", "pos": [50, 500],
       "inputs": [],
       "outputs": [{"name": "VAE", "type": "VAE", "links": [9]}],
       "title": "Load VAE",
-      "widgets_values": ["flux2-klein-vae.safetensors"]
+      "widgets_values": ["flux2-vae.safetensors"]
     },
     {
       "id": 4, "type": "CLIPTextEncode", "pos": [350, 280],
