@@ -19,13 +19,13 @@ services:
               count: all
               capabilities: [gpu]
 
-  whisperx:
+  speaches:
     image: ghcr.io/speaches-ai/speaches:latest-cuda
-    container_name: whisperx
+    container_name: speaches
     ports:
       - "9000:8000"
     volumes:
-      - whisperx_cache:/root/.cache
+      - speaches_cache:/root/.cache
     environment:
       - WHISPER__MODEL=Systran/faster-whisper-large-v3
       - WHISPER__INFERENCE_DEVICE=cuda
@@ -115,9 +115,9 @@ services:
       - AUDIO_TTS_OPENAI_API_KEY=not-needed
       - AUDIO_TTS_MODEL=kokoro
       - AUDIO_TTS_VOICE=af_bella
-      # STT via Whisper (faster-whisper-server / speaches)
+      # STT via Speaches
       - AUDIO_STT_ENGINE=openai
-      - AUDIO_STT_OPENAI_API_BASE_URL=http://whisperx:8000/v1
+      - AUDIO_STT_OPENAI_API_BASE_URL=http://speaches:8000/v1
       - AUDIO_STT_OPENAI_API_KEY=not-needed
       - AUDIO_STT_MODEL=Systran/faster-whisper-large-v3
       # Web search via SearXNG
@@ -126,7 +126,7 @@ services:
       - SEARXNG_QUERY_URL=http://searxng:8080/search?q=<query>&format=json
     depends_on:
       - ollama
-      - whisperx
+      - speaches
       - kokoro
       - comfyui
       - searxng
@@ -142,7 +142,7 @@ services:
 volumes:
   searxng_data:
   ollama_models:
-  whisperx_cache:
+  speaches_cache:
   comfyui_app:
   comfyui_models:
   openwebui_data:
