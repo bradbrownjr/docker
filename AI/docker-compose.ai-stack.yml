@@ -68,6 +68,7 @@ services:
       - comfyui_app:/app
       - comfyui_models:/app/models
       - ./comfyui-gguf-start.sh:/scripts/comfyui-gguf-start.sh:ro
+      - ./flux2-klein-workflow.json:/app/user/default/workflows/flux2-klein.json:ro
     dns:
       - 10.6.26.1
       - 8.8.8.8
