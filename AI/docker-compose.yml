@@ -306,10 +306,9 @@ services:
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
-  # ntfy — push notifications for Odysseus
+  # ntfy — push notifications
   # ---------------------------------------------------------------------------
   ntfy:
-    profiles: [odysseus]
     image: docker.io/binwiederhier/ntfy
     container_name: ntfy
     command: serve
