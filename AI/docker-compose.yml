@@ -310,6 +310,49 @@ services:
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
+  # Hermes Agent — self-improving AI agent — profile: hermes
+  # Requires:    hermes/ subdir (cloned at setup time via setup.sh)
+  # Uses host networking so it can reach Ollama on localhost:11434
+  # Dashboard: http://localhost:9119
+  # ---------------------------------------------------------------------------
+  hermes-gateway:
+    profiles: [hermes]
+    build:
+      context: ./hermes
+    image: hermes-agent:local
+    container_name: hermes-gateway
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./hermes-data:/opt/data
+    environment:
+      - HERMES_UID=${HERMES_UID:-1000}
+      - HERMES_GID=${HERMES_GID:-1000}
+      - OLLAMA_BASE_URL=${HERMES_OLLAMA_URL:-http://localhost:11434}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN:-}
+    command: ["gateway", "run"]
+
+  hermes-dashboard:
+    profiles: [hermes]
+    image: hermes-agent:local
+    container_name: hermes-dashboard
+    restart: unless-stopped
+    network_mode: host
+    depends_on:
+      - hermes-gateway
+    volumes:
+      - ./hermes-data:/opt/data
+    environment:
+      - HERMES_UID=${HERMES_UID:-1000}
+      - HERMES_GID=${HERMES_GID:-1000}
+      - HERMES_DASHBOARD=1
+      - HERMES_DASHBOARD_HOST=127.0.0.1
+      - HERMES_DASHBOARD_PORT=${HERMES_DASHBOARD_PORT:-9119}
+    command: ["dashboard", "--host", "127.0.0.1", "--port", "${HERMES_DASHBOARD_PORT:-9119}", "--no-open"]
+
+  # ---------------------------------------------------------------------------
   # ntfy — push notifications
   # ---------------------------------------------------------------------------
   ntfy:

@@ -179,6 +179,22 @@ else
     ok "Voicebox cloned"
 fi
 
+# ── Hermes Agent source ───────────────────────────────────────────────────────
+
+step "Checking Hermes Agent source..."
+HERMES_DIR="$DIR/hermes"
+if [[ -d "$HERMES_DIR/.git" || -f "$HERMES_DIR/Dockerfile" ]]; then
+    ok "Hermes Agent already present at $HERMES_DIR"
+    if [[ -d "$HERMES_DIR/.git" ]]; then
+        info "Updating Hermes Agent..."
+        git -C "$HERMES_DIR" pull --ff-only 2>/dev/null && ok "Hermes updated" || warn "Could not auto-update Hermes (local changes?)"
+    fi
+else
+    info "Cloning Hermes Agent..."
+    git clone --depth=1 https://github.com/nousresearch/hermes-agent "$HERMES_DIR"
+    ok "Hermes Agent cloned"
+fi
+
 # ── .env setup ────────────────────────────────────────────────────────────────
 
 step "Setting up .env..."
@@ -229,6 +245,7 @@ echo ""
 echo "    Start with optional services:"
 echo "      ./run.sh start --profile voicebox"
 echo "      ./run.sh start --profile odysseus"
+echo "      ./run.sh start --profile hermes"
 echo ""
 echo "    Open the dashboard (http://localhost:8888):"
 echo "      ./run.sh dashboard"

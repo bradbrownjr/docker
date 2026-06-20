@@ -11,6 +11,10 @@ odysseus/logs/
 # Voicebox — cloned by setup.sh, not tracked here
 voicebox/
 
+# Hermes Agent — cloned by setup.sh, not tracked here
+hermes/
+hermes-data/
+
 # ComfyUI generated output
 voicebox-output/
 

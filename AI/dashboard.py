@@ -19,9 +19,11 @@ SERVICES = [
     dict(name="speaches",  label="Speaches STT", port=9000,  path="/docs", color="#0d9488", icon="🎤", profile=None,       buildable=False, desc="Speech-to-text · Whisper"),
     dict(name="searxng",   label="SearXNG",      port=8080,  path="/",     color="#dc2626", icon="🔍", profile=None,       buildable=False, desc="Private web search"),
     dict(name="ntfy",      label="ntfy",         port=8091,  path="/",     color="#0284c7", icon="🔔", profile=None,       buildable=False, desc="Push notifications"),
-    dict(name="voicebox",  label="Voicebox",     port=17493, path="/",     color="#4f46e5", icon="🎙️", profile="voicebox", buildable=True,  desc="Voice cloning & studio"),
-    dict(name="odysseus",  label="Odysseus",     port=7000,  path="/",     color="#d97706", icon="🚢", profile="odysseus", buildable=True,  desc="AI agent platform"),
-    dict(name="chromadb",  label="ChromaDB",     port=8100,  path="/docs", color="#059669", icon="🗄️", profile="odysseus", buildable=False, desc="Vector database"),
+    dict(name="voicebox",        label="Voicebox",         port=17493, path="/",     color="#4f46e5", icon="🎙️", profile="voicebox", buildable=True,  desc="Voice cloning & studio"),
+    dict(name="odysseus",        label="Odysseus",         port=7000,  path="/",     color="#d97706", icon="🚢", profile="odysseus", buildable=True,  desc="AI agent platform"),
+    dict(name="chromadb",        label="ChromaDB",         port=8100,  path="/docs", color="#059669", icon="🗄️", profile="odysseus", buildable=False, desc="Vector database"),
+    dict(name="hermes-dashboard",label="Hermes",           port=9119,  path="/",     color="#a855f7", icon="⚗️", profile="hermes",   buildable=True,  desc="Self-improving AI agent · dashboard"),
+    dict(name="hermes-gateway",  label="Hermes Gateway",   port=None,  path=None,    color="#9333ea", icon="📡", profile="hermes",   buildable=False, desc="Messaging gateway (Telegram, Discord…)"),
 ]
 
 ENV_DEPS = {
@@ -45,6 +47,13 @@ ENV_DEPS = {
     "OLLAMA_NUM_PARALLEL":         ["ollama"],
     "OLLAMA_FLASH_ATTENTION":      ["ollama"],
     "CHROMADB_BIND":               ["chromadb"],
+    "OPENROUTER_API_KEY":          ["hermes-gateway"],
+    "HERMES_OLLAMA_URL":           ["hermes-gateway"],
+    "TELEGRAM_BOT_TOKEN":          ["hermes-gateway"],
+    "DISCORD_BOT_TOKEN":           ["hermes-gateway"],
+    "HERMES_DASHBOARD_PORT":       ["hermes-dashboard"],
+    "HERMES_UID":                  ["hermes-gateway","hermes-dashboard"],
+    "HERMES_GID":                  ["hermes-gateway","hermes-dashboard"],
     "NTFY_BIND":               ["ntfy"],
     "NTFY_BASE_URL":           ["ntfy"],
     "PUID":                    ["odysseus"],
@@ -786,7 +795,7 @@ function sectionHTML(title, svcs, profile) {
   return h;
 }
 
-const PROF_LABELS = {openwebui:'OpenWebUI', voicebox:'Voicebox', odysseus:'Odysseus'};
+const PROF_LABELS = {openwebui:'OpenWebUI', voicebox:'Voicebox', odysseus:'Odysseus', hermes:'Hermes Agent'};
 
 function renderCards() {
   const core = S.svcs.filter(s=>!s.profile);
