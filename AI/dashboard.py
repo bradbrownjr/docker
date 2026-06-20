@@ -512,15 +512,19 @@ main{padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:18px}
   background:none;border:none;color:var(--muted);font-family:inherit;transition:var(--tr)}
 .env-mode-btn.on{background:var(--acc);color:#fff}
 /* fields mode */
-.env-fields{padding:16px;display:flex;flex-direction:column;gap:24px}
-.env-section{}
+.env-fields{padding:16px;display:flex;flex-direction:column;gap:8px}
+.env-section{border:1.5px solid var(--bdr);border-radius:var(--rs);overflow:hidden}
 .env-sec-title{display:flex;align-items:center;gap:8px;font-size:.76rem;font-weight:800;
   letter-spacing:.07em;text-transform:uppercase;color:var(--acc2);
-  background:var(--accbg);border:1.5px solid color-mix(in srgb,var(--acc) 35%,transparent);
-  border-left:3px solid var(--acc);padding:7px 12px;border-radius:var(--rs);
-  margin-bottom:12px}
+  background:var(--accbg);border-left:3px solid var(--acc);padding:9px 12px;
+  cursor:pointer;user-select:none;transition:background var(--tr)}
+.env-sec-title:hover{background:color-mix(in srgb,var(--accbg) 80%,var(--surf3))}
+.env-sec-chevron{margin-left:auto;font-size:.7rem;transition:transform .2s ease;opacity:.7}
+.env-section.open .env-sec-chevron{transform:rotate(90deg)}
+.env-sec-body{display:none;border-top:1.5px solid var(--bdr)}
+.env-section.open .env-sec-body{display:block}
 .env-field{display:grid;grid-template-columns:200px 1fr auto;align-items:start;
-  gap:10px;padding:8px 0;border-bottom:1px solid var(--bdr)}
+  gap:10px;padding:8px 12px;border-bottom:1px solid var(--bdr)}
 .env-field:last-child{border-bottom:none}
 .env-field-lbl{display:flex;flex-direction:column;gap:3px}
 .env-field-key{font-family:'SF Mono','Fira Code',monospace;font-size:.78rem;font-weight:700;color:var(--txt)}
@@ -537,10 +541,10 @@ main{padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:18px}
   outline:none;resize:none;font-family:'SF Mono','Fira Code',monospace;
   font-size:.8rem;line-height:1.75;padding:16px;tab-size:2}
 /* restart banner */
-.rbanner{display:none;align-items:flex-start;gap:10px;padding:12px 15px;
-  background:var(--ylwdim);border-top:1.5px solid var(--ylwbdr);color:var(--ylw);font-size:.8rem}
+.rbanner{display:none;align-items:flex-start;gap:10px;padding:11px 15px;
+  background:var(--ylwdim);border-bottom:1.5px solid var(--ylwbdr);color:var(--ylw);font-size:.8rem}
 .rbanner.on{display:flex}
-.rbl{margin-top:6px;display:flex;flex-wrap:wrap;gap:5px}
+.rbl{margin-top:4px;display:flex;flex-wrap:wrap;gap:5px}
 .rchip{padding:2px 8px;border-radius:4px;background:var(--ylwdim);
   border:1px solid var(--ylwbdr);font-size:.72rem;font-weight:700;color:var(--ylw)}
 
@@ -626,8 +630,6 @@ main{padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:18px}
         <button class="btn sm ghost" onclick="loadExample()">↩ Reset</button>
         <button class="btn sm pri" onclick="saveEnv()">💾 Save</button>
       </div>
-      <div id="env-fields-view" class="env-fields"></div>
-      <textarea id="env-raw-view" class="env-raw" style="display:none" spellcheck="false"></textarea>
       <div class="rbanner" id="rbanner">
         <span style="font-size:16px;flex-shrink:0">⚠️</span>
         <div>
@@ -635,6 +637,8 @@ main{padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:18px}
           <div class="rbl" id="rbl"></div>
         </div>
       </div>
+      <div id="env-fields-view" class="env-fields"></div>
+      <textarea id="env-raw-view" class="env-raw" style="display:none" spellcheck="false"></textarea>
     </div>
   </div>
 
@@ -801,8 +805,14 @@ function renderCards() {
   const core = S.svcs.filter(s=>!s.profile);
   const byProf = {};
   S.svcs.filter(s=>s.profile).forEach(s=>{(byProf[s.profile]=byProf[s.profile]||[]).push(s);});
+  // Active profiles first, inactive last
+  const sorted = Object.entries(byProf).sort(([a],[b]) => {
+    const aOn = S.profiles.includes(a) ? 0 : 1;
+    const bOn = S.profiles.includes(b) ? 0 : 1;
+    return aOn - bOn;
+  });
   let h = sectionHTML('Core Services', core, null);
-  for(const [prof,svcs] of Object.entries(byProf)) {
+  for(const [prof,svcs] of sorted) {
     const label = PROF_LABELS[prof] || (prof.charAt(0).toUpperCase()+prof.slice(1));
     h += sectionHTML(label, svcs, prof);
   }
@@ -914,7 +924,11 @@ function renderEnvFields() {
   if(!S.envFields.length){wrap.innerHTML='<p style="color:var(--muted);padding:16px">No .env.example found.</p>';return;}
   let h='';
   S.envFields.forEach(sec=>{
-    h+=`<div class="env-section"><div class="env-sec-title">${sec.name}</div>`;
+    h+=`<div class="env-section">
+      <div class="env-sec-title" onclick="this.closest('.env-section').classList.toggle('open')">
+        ${sec.name}<span class="env-sec-chevron">▶</span>
+      </div>
+      <div class="env-sec-body">`;
     sec.fields.forEach(f=>{
       const aff=f.affects.map(a=>`<span class="aff-chip">${a}</span>`).join('');
       const type=f.secret?'password':'text';
@@ -930,7 +944,7 @@ function renderEnvFields() {
         <div class="env-field-affects">${aff}</div>
       </div>`;
     });
-    h+='</div>';
+    h+='</div></div>';
   });
   wrap.innerHTML=h;
 }
