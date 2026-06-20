@@ -303,9 +303,9 @@ HTML = r"""<!DOCTYPE html>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
 :root {
-  --bg:#07070c; --surf:#111119; --surf2:#191923; --surf3:#21212e;
-  --bdr:#2c2c3e; --bdr2:#38384e;
-  --txt:#eaf0ff; --muted:#8892b8; --dim:#505878;
+  --bg:#0d0d15; --surf:#1a1a2c; --surf2:#22223a; --surf3:#2a2a44;
+  --bdr:#3a3a58; --bdr2:#52528a;
+  --txt:#eaf0ff; --muted:#9aa0c8; --dim:#6068a0;
   --acc:#6366f1; --acc2:#818cf8; --accbg:rgba(99,102,241,.16);
   --grn:#22c55e; --grndim:rgba(34,197,94,.15); --grnbdr:rgba(34,197,94,.3);
   --ylw:#f59e0b; --ylwdim:rgba(245,158,11,.14); --ylwbdr:rgba(245,158,11,.3);
