@@ -620,6 +620,26 @@ main{padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:18px}
 .mrun-badge{display:inline-flex;align-items:center;gap:4px;font-size:.68rem;font-weight:700;
   padding:2px 7px;border-radius:20px;background:var(--grndim);border:1px solid var(--grnbdr);
   color:var(--grn);margin-left:6px}
+/* recommended grid */
+.rec-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.rec-card{background:var(--surf2);border:1.5px solid var(--bdr);border-radius:var(--rs);
+  padding:12px;display:flex;flex-direction:column;gap:8px;transition:border-color var(--tr)}
+.rec-card:hover{border-color:var(--bdr2)}
+.rec-card.installed{border-color:var(--grnbdr);background:var(--grndim)}
+.rec-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.rec-name{font-family:'SF Mono','Fira Code',monospace;font-size:.82rem;font-weight:800;color:var(--txt)}
+.rec-vram{font-size:.72rem;font-weight:700;padding:2px 7px;border-radius:20px;
+  background:var(--accbg);border:1px solid color-mix(in srgb,var(--acc) 40%,transparent);
+  color:var(--acc2);white-space:nowrap;flex-shrink:0}
+.rec-desc{font-size:.74rem;color:var(--muted);line-height:1.45}
+.rec-tags{display:flex;gap:4px;flex-wrap:wrap}
+.rec-tag{font-size:.62rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
+  padding:2px 6px;border-radius:4px;background:var(--surf3);border:1px solid var(--bdr2);color:var(--dim)}
+.rec-tag.t-coding{background:rgba(124,58,237,.15);border-color:rgba(124,58,237,.4);color:#a78bfa}
+.rec-tag.t-reasoning{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.35);color:var(--ylw)}
+.rec-tag.t-vision{background:rgba(13,148,136,.15);border-color:rgba(13,148,136,.4);color:#5eead4}
+.rec-tag.t-agentic{background:rgba(168,85,247,.15);border-color:rgba(168,85,247,.4);color:#c084fc}
+.rec-tag.t-fast{background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.35);color:var(--grn)}
 
 /* ── logs ── */
 .lctrl{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
@@ -714,6 +734,12 @@ main{padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:18px}
         <pre id="pull-log" style="font-size:.72rem;color:var(--muted);font-family:'SF Mono','Fira Code',monospace;
              max-height:120px;overflow-y:auto;margin:0;white-space:pre-wrap;word-break:break-all"></pre>
       </div>
+      <!-- recommended -->
+      <div>
+        <div style="font-size:.72rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+             color:var(--muted);margin-bottom:8px" id="rec-hdr">Recommended for your GPU</div>
+        <div id="models-recommended"><div class="gpu-none">Loading…</div></div>
+      </div>
       <!-- running -->
       <div>
         <div style="font-size:.72rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
@@ -778,6 +804,7 @@ const S = {
   logEs:null, logFollow:true,
   envMode:'fields', envOrig:'', envDeps:{}, envFields:[],
   pending:new Set(),
+  vramTotal:0,
 };
 
 // ── boot ──────────────────────────────────────────────────────────────────────
@@ -964,7 +991,9 @@ async function secAct(sec, action) {
 async function loadGpu() {
   try {
     const d=await fetch('/api/gpu').then(r=>r.json());
+    if(d.gpus&&d.gpus.length) S.vramTotal = d.gpus[0].vram_total;
     renderGpu(d.gpus, d.models);
+    renderRecommended();
     document.getElementById('gpu-updated').textContent =
       'updated '+new Date().toLocaleTimeString();
   } catch(e){}
@@ -1011,6 +1040,90 @@ function renderGpu(gpus, models) {
 }
 
 // ── model library ────────────────────────────────────────────────────────────
+// gb = approximate VRAM needed for default Ollama quantization (Q4_K_M)
+const POPULAR = [
+  {m:'gemma3:1b',        gb:0.8,  desc:'Google Gemma 3 1B — smallest capable model',       tags:['fast']},
+  {m:'llama3.2:1b',      gb:1.3,  desc:'Meta Llama 3.2 1B — ultra-light, very fast',       tags:['fast']},
+  {m:'llama3.2:3b',      gb:2.0,  desc:'Meta Llama 3.2 3B — fast and surprisingly capable',tags:['fast','general']},
+  {m:'qwen2.5:3b',       gb:2.0,  desc:'Alibaba Qwen 2.5 3B — strong multilingual model',  tags:['general']},
+  {m:'gemma3:4b',        gb:3.3,  desc:'Google Gemma 3 4B — excellent quality/size ratio', tags:['general','vision']},
+  {m:'phi4-mini',        gb:3.8,  desc:'Microsoft Phi-4 Mini — reasoning above its weight', tags:['general','reasoning']},
+  {m:'codellama:7b',     gb:3.8,  desc:'Meta CodeLlama 7B — solid code completion',        tags:['coding']},
+  {m:'mistral:7b',       gb:4.1,  desc:'Mistral 7B — fast, reliable all-rounder',          tags:['general']},
+  {m:'llama3.1:8b',      gb:4.7,  desc:'Meta Llama 3.1 8B — great general purpose',        tags:['general']},
+  {m:'qwen2.5:7b',       gb:4.7,  desc:'Qwen 2.5 7B — top performer at this size class',   tags:['general']},
+  {m:'deepseek-r1:7b',   gb:4.7,  desc:'DeepSeek R1 7B — strong chain-of-thought reasoning',tags:['reasoning']},
+  {m:'qwen2.5-coder:7b', gb:4.7,  desc:'Qwen 2.5 Coder 7B — best-in-class for code',      tags:['coding']},
+  {m:'hermes3:8b',       gb:5.0,  desc:'NousResearch Hermes 3 8B — tool use & agents',     tags:['agentic','general']},
+  {m:'mistral-nemo:12b', gb:7.1,  desc:'Mistral NeMo 12B — 128k context, fast inference',  tags:['general','fast']},
+  {m:'gemma3:12b',       gb:8.1,  desc:'Google Gemma 3 12B — multimodal vision + text',    tags:['general','vision']},
+  {m:'phi4:14b',         gb:8.9,  desc:'Microsoft Phi-4 14B — top mid-size reasoning model',tags:['general','reasoning']},
+  {m:'qwen2.5:14b',      gb:9.0,  desc:'Qwen 2.5 14B — multilingual powerhouse',           tags:['general']},
+  {m:'deepseek-r1:14b',  gb:9.0,  desc:'DeepSeek R1 14B — advanced multi-step reasoning',  tags:['reasoning']},
+  {m:'qwen2.5-coder:14b',gb:9.0,  desc:'Qwen 2.5 Coder 14B — top mid-size coding model',  tags:['coding']},
+  {m:'qwen2.5:32b',      gb:19.8, desc:'Qwen 2.5 32B — near-frontier quality',             tags:['general']},
+  {m:'deepseek-r1:32b',  gb:19.3, desc:'DeepSeek R1 32B — frontier-grade reasoning',       tags:['reasoning']},
+  {m:'qwen2.5-coder:32b',gb:19.9, desc:'Qwen 2.5 Coder 32B — best open-source coder',     tags:['coding']},
+  {m:'llama3.3:70b',     gb:43.0, desc:'Meta Llama 3.3 70B — frontier open-weight model',  tags:['general']},
+  {m:'hermes3:70b',      gb:43.0, desc:'NousResearch Hermes 3 70B — top agentic model',     tags:['agentic','general']},
+  {m:'qwen2.5:72b',      gb:47.0, desc:'Qwen 2.5 72B — top-tier multilingual frontier',    tags:['general']},
+];
+
+const TAG_CLASS = {coding:'t-coding',reasoning:'t-reasoning',vision:'t-vision',
+                   agentic:'t-agentic',fast:'t-fast'};
+
+function renderRecommended() {
+  const el = document.getElementById('models-recommended');
+  const hdr = document.getElementById('rec-hdr');
+  const vram = S.vramTotal;   // MB; 0 = unknown
+  const installed = new Set(M.library.map(m=>m.name));
+
+  // budget: 90% of total VRAM in MB; if unknown show all
+  const budget = vram > 0 ? vram * 0.90 : Infinity;
+  const fits = POPULAR.filter(p => p.gb * 1024 <= budget);
+
+  if(!fits.length && vram === 0) {
+    el.innerHTML='<div class="gpu-none">GPU info unavailable — check the Dashboard tab</div>';
+    return;
+  }
+  if(!fits.length) {
+    el.innerHTML=`<div class="gpu-none">No recommended models fit within ${Math.round(budget/1024*10)/10} GB VRAM budget</div>`;
+    return;
+  }
+
+  // sort: biggest that fits first (most capable)
+  const sorted = [...fits].sort((a,b)=>b.gb-a.gb);
+  if(vram > 0) hdr.textContent = `Recommended — fits your ${Math.round(vram/1024*10)/10} GB GPU`;
+
+  let h='<div class="rec-grid">';
+  sorted.forEach(p=>{
+    const inst = installed.has(p.m);
+    const tags = p.tags.map(t=>`<span class="rec-tag ${TAG_CLASS[t]||''}">${t}</span>`).join('');
+    h+=`<div class="rec-card${inst?' installed':''}">
+      <div class="rec-top">
+        <span class="rec-name">${p.m}</span>
+        <span class="rec-vram">${p.gb} GB</span>
+      </div>
+      <div class="rec-desc">${p.desc}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div class="rec-tags">${tags}</div>
+        ${inst
+          ? '<span class="mrun-badge" style="margin-left:0">✓ installed</span>'
+          : `<button class="btn sm pri" style="flex-shrink:0" onclick="quickPull('${p.m}')">▼ Pull</button>`}
+      </div>
+    </div>`;
+  });
+  h+='</div>';
+  el.innerHTML=h;
+}
+
+function quickPull(name) {
+  document.getElementById('pull-input').value = name;
+  pullModel();
+  // scroll progress into view
+  document.getElementById('pull-progress').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
 let M = {pullEs:null, library:[], running:[]};
 
 async function loadModels() {
@@ -1024,6 +1137,7 @@ async function loadModels() {
 }
 
 function renderModels() {
+  renderRecommended();
   const runNames = new Set(M.running.map(m=>m.name));
 
   // running table
