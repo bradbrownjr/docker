@@ -119,6 +119,23 @@ def gpu_stats():
         return gpus or None
     except: return None
 
+def ollama_list():
+    try:
+        r = subprocess.run(["docker","exec","ollama","ollama","list"],
+                           capture_output=True, text=True, timeout=10)
+        if r.returncode != 0: return []
+        lines = r.stdout.strip().splitlines()
+        if len(lines) < 2: return []
+        out = []
+        for line in lines[1:]:
+            parts = line.split()
+            if len(parts) >= 4:
+                out.append({"name":parts[0],"id":parts[1],
+                            "size":parts[2]+" "+parts[3],
+                            "modified":" ".join(parts[4:])})
+        return out
+    except: return []
+
 def ollama_models():
     try:
         r = subprocess.run(["docker","exec","ollama","ollama","ps"],
@@ -255,6 +272,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif p == "/api/env/example":
             ex = STACK_DIR/".env.example"
             self.send_json({"content":ex.read_text() if ex.exists() else ""})
+        elif p == "/api/ollama/models":
+            self.send_json({"library":ollama_list(),"running":ollama_models()})
+        elif p.startswith("/api/ollama/pull/"):
+            from urllib.parse import unquote
+            self._stream_pull(unquote(p[len("/api/ollama/pull/"):]))
         elif p.startswith("/api/logs/"):
             self._stream_logs(p[len("/api/logs/"):])
         else:
@@ -306,7 +328,44 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif p == "/api/stack/pull":
             compose_run(["pull"], timeout=600)
             self.send_json(compose_run(["up","-d","--remove-orphans"]))
+        elif p == "/api/ollama/delete":
+            d = self.body()
+            model = d.get("model","")
+            if not model: self.send_json({"ok":False,"err":"no model"}); return
+            r = subprocess.run(["docker","exec","ollama","ollama","rm",model],
+                               capture_output=True, text=True, timeout=30)
+            self.send_json({"ok":r.returncode==0,"out":r.stdout,"err":r.stderr})
         else: self.send_response(404); self.end_headers()
+
+    def _stream_pull(self, model):
+        self.send_response(200)
+        self.send_header("Content-Type","text/event-stream")
+        self.send_header("Cache-Control","no-cache")
+        self.send_header("Connection","keep-alive")
+        self.send_header("Access-Control-Allow-Origin","*")
+        self.end_headers()
+        proc = subprocess.Popen(
+            ["docker","exec","ollama","ollama","pull", model],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0)
+        buf = b""
+        try:
+            while True:
+                ch = proc.stdout.read(1)
+                if not ch: break
+                if ch in (b'\n', b'\r'):
+                    line = buf.decode("utf-8","replace").strip()
+                    buf = b""
+                    if line:
+                        self.wfile.write(f"data: {json.dumps(line)}\n\n".encode())
+                        self.wfile.flush()
+                else:
+                    buf += ch
+        except (BrokenPipeError, ConnectionResetError, OSError): pass
+        finally: proc.terminate()
+        proc.wait()
+        done = json.dumps({"done":True,"ok":proc.returncode==0})
+        try: self.wfile.write(f"data: {done}\n\n".encode()); self.wfile.flush()
+        except: pass
 
     def _stream_logs(self, svc):
         self.send_response(200)
@@ -548,6 +607,20 @@ main{padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:18px}
 .rchip{padding:2px 8px;border-radius:4px;background:var(--ylwdim);
   border:1px solid var(--ylwbdr);font-size:.72rem;font-weight:700;color:var(--ylw)}
 
+/* ── model library ── */
+.mlib-table{font-size:.8rem;border-collapse:collapse;width:100%}
+.mlib-table th{text-align:left;padding:6px 10px;color:var(--muted);font-weight:700;font-size:.7rem;
+  letter-spacing:.05em;text-transform:uppercase;border-bottom:2px solid var(--bdr)}
+.mlib-table td{padding:8px 10px;border-bottom:1px solid var(--bdr);vertical-align:middle}
+.mlib-table tr:last-child td{border-bottom:none}
+.mlib-table tr:hover td{background:var(--surf2)}
+.mname{font-family:'SF Mono','Fira Code',monospace;font-weight:700;color:var(--txt)}
+.msize{color:var(--muted);font-size:.76rem;white-space:nowrap}
+.mmod{color:var(--dim);font-size:.74rem;white-space:nowrap}
+.mrun-badge{display:inline-flex;align-items:center;gap:4px;font-size:.68rem;font-weight:700;
+  padding:2px 7px;border-radius:20px;background:var(--grndim);border:1px solid var(--grnbdr);
+  color:var(--grn);margin-left:6px}
+
 /* ── logs ── */
 .lctrl{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .lsel{padding:7px 12px;border-radius:var(--rs);border:1.5px solid var(--bdr);
@@ -589,6 +662,7 @@ main{padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:18px}
 <nav>
   <div class="nl">Navigate</div>
   <button class="nb on" data-view="dashboard"><span class="ni">📊</span>Dashboard</button>
+  <button class="nb" data-view="models"><span class="ni">📦</span>Models</button>
   <button class="nb" data-view="env"><span class="ni">⚙️</span>.env Editor</button>
   <button class="nb" data-view="logs"><span class="ni">📋</span>Logs</button>
 </nav>
@@ -615,6 +689,44 @@ main{padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:18px}
     </div>
     <!-- Service sections -->
     <div id="svc-container"></div>
+  </div>
+
+  <!-- Models -->
+  <div class="view" id="view-models">
+    <div class="gpu-panel">
+      <div class="gpu-hdr">
+        <span class="gpu-hdr-title">📦 Ollama Model Library</span>
+        <button class="btn sm ghost" onclick="loadModels()" style="margin-left:auto">↺ Refresh</button>
+      </div>
+      <!-- pull bar -->
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="pull-input" class="env-field-input" style="flex:1;max-width:380px"
+               placeholder="model name  e.g. llama3.2, mistral:7b, qwen2.5:32b"
+               onkeydown="if(event.key==='Enter')pullModel()">
+        <button class="btn pri" id="pull-btn" onclick="pullModel()">▼ Pull</button>
+      </div>
+      <div id="pull-progress" style="display:none;flex-direction:column;gap:4px">
+        <div style="font-size:.75rem;font-weight:700;color:var(--muted);margin-bottom:2px"
+             id="pull-status"></div>
+        <div style="background:var(--surf3);border:1.5px solid var(--bdr);border-radius:var(--rs);
+             height:6px;overflow:hidden"><div id="pull-bar" style="height:100%;width:0%;
+             background:linear-gradient(90deg,var(--acc),var(--acc2));transition:width .3s"></div></div>
+        <pre id="pull-log" style="font-size:.72rem;color:var(--muted);font-family:'SF Mono','Fira Code',monospace;
+             max-height:120px;overflow-y:auto;margin:0;white-space:pre-wrap;word-break:break-all"></pre>
+      </div>
+      <!-- running -->
+      <div>
+        <div style="font-size:.72rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+             color:var(--muted);margin-bottom:8px">Currently Loaded in VRAM</div>
+        <div id="models-running"><div class="gpu-none">Loading…</div></div>
+      </div>
+      <!-- library -->
+      <div>
+        <div style="font-size:.72rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+             color:var(--muted);margin-bottom:8px">Installed Library</div>
+        <div id="models-library"><div class="gpu-none">Loading…</div></div>
+      </div>
+    </div>
   </div>
 
   <!-- .env Editor -->
@@ -671,7 +783,7 @@ const S = {
 // ── boot ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   applyTheme(S.theme);
-  loadStatus(); loadEnv(); loadGpu(); populateLogSel();
+  loadStatus(); loadEnv(); loadGpu(); loadModels(); populateLogSel();
   setInterval(loadStatus, 4000);
   setInterval(loadGpu, 5000);
   document.querySelectorAll('.nb[data-view]').forEach(b =>
@@ -693,6 +805,7 @@ function nav(v) {
   document.querySelectorAll('.nb').forEach(b => b.classList.remove('on'));
   document.getElementById('view-'+v).classList.add('on');
   document.querySelector(`.nb[data-view="${v}"]`).classList.add('on');
+  if(v==='models') loadModels();
 }
 
 // ── status polling ────────────────────────────────────────────────────────────
@@ -895,6 +1008,106 @@ function renderGpu(gpus, models) {
   }
   h+=`</div></div>`;
   el.innerHTML=h;
+}
+
+// ── model library ────────────────────────────────────────────────────────────
+let M = {pullEs:null, library:[], running:[]};
+
+async function loadModels() {
+  try {
+    const d = await fetch('/api/ollama/models').then(r=>r.json());
+    M.library = d.library||[]; M.running = d.running||[];
+    renderModels();
+  } catch(e) {
+    document.getElementById('models-library').innerHTML='<div class="gpu-none">Ollama not running</div>';
+  }
+}
+
+function renderModels() {
+  const runNames = new Set(M.running.map(m=>m.name));
+
+  // running table
+  const runEl = document.getElementById('models-running');
+  if(!M.running.length) {
+    runEl.innerHTML='<div class="ollama-empty">No models loaded in VRAM</div>';
+  } else {
+    let h='<table class="ollama-table"><thead><tr><th>Model</th><th>Size</th><th>Processor</th><th>Expires</th></tr></thead><tbody>';
+    M.running.forEach(m=>{h+=`<tr><td>${m.name}</td><td>${m.size}</td><td>${m.proc}</td><td>${m.until}</td></tr>`;});
+    runEl.innerHTML = h+'</tbody></table>';
+  }
+
+  // library table
+  const libEl = document.getElementById('models-library');
+  if(!M.library.length) {
+    libEl.innerHTML='<div class="gpu-none">No models installed — pull one above</div>';
+    return;
+  }
+  let h='<table class="mlib-table"><thead><tr><th>Model</th><th>Size</th><th>Modified</th><th></th></tr></thead><tbody>';
+  M.library.forEach(m=>{
+    const loaded = runNames.has(m.name);
+    h+=`<tr>
+      <td><span class="mname">${m.name}</span>${loaded?'<span class="mrun-badge">● loaded</span>':''}</td>
+      <td class="msize">${m.size}</td>
+      <td class="mmod">${m.modified}</td>
+      <td><button class="btn sm dng" onclick="deleteModel('${m.name.replace(/'/g,"\\'")}')">🗑</button></td>
+    </tr>`;
+  });
+  libEl.innerHTML = h+'</tbody></table>';
+}
+
+async function deleteModel(name) {
+  if(!confirm(`Delete ${name}?\nThis cannot be undone — you'll need to re-pull it.`)) return;
+  toast(`Deleting ${name}…`,'inf');
+  const d = await api('/api/ollama/delete',{model:name});
+  if(d.ok){ toast(`Deleted ${name}`,'ok'); await loadModels(); }
+  else toast(`Delete failed: ${d.err||'unknown error'}`,'err');
+}
+
+function pullModel() {
+  const name = document.getElementById('pull-input').value.trim();
+  if(!name) return;
+  if(M.pullEs){ M.pullEs.close(); M.pullEs=null; }
+
+  const prog = document.getElementById('pull-progress');
+  const status = document.getElementById('pull-status');
+  const bar = document.getElementById('pull-bar');
+  const log = document.getElementById('pull-log');
+  const btn = document.getElementById('pull-btn');
+
+  prog.style.display='flex'; bar.style.width='0%';
+  log.textContent=''; status.textContent=`Pulling ${name}…`;
+  btn.disabled=true; btn.textContent='Pulling…';
+
+  M.pullEs = new EventSource(`/api/ollama/pull/${encodeURIComponent(name)}`);
+  M.pullEs.onmessage = e => {
+    let msg;
+    try { msg = JSON.parse(e.data); } catch { return; }
+    if(msg.done) {
+      M.pullEs.close(); M.pullEs=null;
+      btn.disabled=false; btn.textContent='▼ Pull';
+      if(msg.ok){
+        status.textContent=`✓ ${name} pulled successfully`;
+        bar.style.width='100%';
+        toast(`${name} ready`,'ok');
+        loadModels();
+        document.getElementById('pull-input').value='';
+      } else {
+        status.textContent=`✗ Pull failed`;
+        toast(`Pull failed for ${name}`,'err');
+      }
+      return;
+    }
+    // progress line — extract percentage if present
+    const pct = msg.match(/(\d+)%/);
+    if(pct) bar.style.width = pct[1]+'%';
+    status.textContent = msg;
+    log.textContent = msg;
+  };
+  M.pullEs.onerror = () => {
+    M.pullEs.close(); M.pullEs=null;
+    btn.disabled=false; btn.textContent='▼ Pull';
+    status.textContent='Connection lost';
+  };
 }
 
 // ── .env editor ───────────────────────────────────────────────────────────────
