@@ -13,7 +13,10 @@ services:
     environment:
       - OLLAMA_HOST=0.0.0.0:11434
       - OLLAMA_LOAD_TIMEOUT=15m
-      - OLLAMA_KEEP_ALIVE=0
+      - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:-5m}
+      - OLLAMA_MAX_LOADED_MODELS=${OLLAMA_MAX_LOADED_MODELS:-0}
+      - OLLAMA_NUM_PARALLEL=${OLLAMA_NUM_PARALLEL:-1}
+      - OLLAMA_FLASH_ATTENTION=${OLLAMA_FLASH_ATTENTION:-0}
     restart: unless-stopped
     deploy:
       resources:
@@ -140,9 +143,10 @@ services:
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
-  # Main UI (OpenWebUI)
+  # Main UI (OpenWebUI) — profile: openwebui
   # ---------------------------------------------------------------------------
   openwebui:
+    profiles: [openwebui]
     image: ghcr.io/open-webui/open-webui:cuda
     container_name: openwebui
     ports:

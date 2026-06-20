@@ -12,7 +12,7 @@ ENV_FILE  = STACK_DIR / ".env"
 CFG_FILE  = STACK_DIR / ".dashboard.json"
 
 SERVICES = [
-    dict(name="openwebui", label="OpenWebUI",   port=3000,  path="/",     color="#2563eb", icon="💬", profile=None,       buildable=False, desc="Main AI chat interface"),
+    dict(name="openwebui", label="OpenWebUI",   port=3000,  path="/",     color="#2563eb", icon="💬", profile="openwebui", buildable=False, desc="Main AI chat interface"),
     dict(name="ollama",    label="Ollama",       port=11434, path=None,    color="#f97316", icon="🦙", profile=None,       buildable=False, desc="LLM inference engine"),
     dict(name="comfyui",   label="ComfyUI",      port=8188,  path="/",     color="#7c3aed", icon="🎨", profile=None,       buildable=True,  desc="Image generation · Flux2-Klein"),
     dict(name="kokoro",    label="Kokoro TTS",   port=8880,  path="/docs", color="#db2777", icon="🔊", profile=None,       buildable=False, desc="Text-to-speech"),
@@ -40,7 +40,11 @@ ENV_DEPS = {
     "APP_PORT":                ["odysseus"],
     "APP_DATA_DIR":            ["odysseus"],
     "APP_LOGS_DIR":            ["odysseus"],
-    "CHROMADB_BIND":           ["chromadb"],
+    "OLLAMA_KEEP_ALIVE":           ["ollama"],
+    "OLLAMA_MAX_LOADED_MODELS":    ["ollama"],
+    "OLLAMA_NUM_PARALLEL":         ["ollama"],
+    "OLLAMA_FLASH_ATTENTION":      ["ollama"],
+    "CHROMADB_BIND":               ["chromadb"],
     "NTFY_BIND":               ["ntfy"],
     "NTFY_BASE_URL":           ["ntfy"],
     "PUID":                    ["odysseus"],
@@ -753,7 +757,7 @@ function cardHTML(svc) {
       <button class="btn sm pri" onclick="svcAct('${svc.name}','start')" ${run||dis?'disabled':''}>▶</button>
       <button class="btn sm dng" onclick="svcAct('${svc.name}','stop')" ${!run||dis?'disabled':''}>■</button>
       <button class="btn sm" onclick="svcAct('${svc.name}','restart')" ${dis?'disabled':''}>↺</button>
-      <button class="btn sm" onclick="svcAct('${svc.name}','pull')" title="${svc.buildable?'Rebuild':'Pull'} &amp; recreate" ${dis?'disabled':''}>⬇</button>
+      <button class="btn sm" onclick="svcAct('${svc.name}','pull')" title="${svc.buildable?'Rebuild':'Pull'} &amp; ${svc.state==='not_created'?'start':'recreate'}" ${dis?'disabled':''}>▼</button>
       <button class="btn sm ghost" onclick="openLogs('${svc.name}')" title="Logs">📋</button>
       ${hasUI&&run?`<a class="btn sm open-btn" href="${svcUrl(svc)}" target="_blank" rel="noopener">Open ↗</a>`:''}
     </div>
@@ -782,13 +786,17 @@ function sectionHTML(title, svcs, profile) {
   return h;
 }
 
+const PROF_LABELS = {openwebui:'OpenWebUI', voicebox:'Voicebox', odysseus:'Odysseus'};
+
 function renderCards() {
   const core = S.svcs.filter(s=>!s.profile);
   const byProf = {};
   S.svcs.filter(s=>s.profile).forEach(s=>{(byProf[s.profile]=byProf[s.profile]||[]).push(s);});
   let h = sectionHTML('Core Services', core, null);
-  for(const [prof,svcs] of Object.entries(byProf))
-    h += sectionHTML(prof.charAt(0).toUpperCase()+prof.slice(1)+' Profile', svcs, prof);
+  for(const [prof,svcs] of Object.entries(byProf)) {
+    const label = PROF_LABELS[prof] || (prof.charAt(0).toUpperCase()+prof.slice(1));
+    h += sectionHTML(label, svcs, prof);
+  }
   document.getElementById('svc-container').innerHTML = h;
 }
 
