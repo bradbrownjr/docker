@@ -123,7 +123,7 @@ def ollama_models():
     except: return []
 
 def parse_env_fields():
-    """Parse .env.example into structured sections; merge current .env values."""
+    """Parse .env.example into sections using # --- divider blocks as section titles."""
     ex = STACK_DIR / ".env.example"
     if not ex.exists(): return []
     cur = {}
@@ -132,31 +132,54 @@ def parse_env_fields():
             s = line.strip()
             if s and not s.startswith('#') and '=' in s:
                 k, _, v = s.partition('='); cur[k.strip()] = v
-    sections, sec_name, fields, desc_buf = [], "General", [], []
+
+    def is_div(s):
+        return s.startswith('#') and len(s) > 5 and all(c in '#-= \t' for c in s)
+
+    sections, sec_name, fields, desc_buf = [], None, [], []
+    in_block, block_title, block_desc = False, None, []
+
     def flush_sec():
         nonlocal sec_name, fields
-        if fields: sections.append({"name": sec_name, "fields": fields})
+        if fields: sections.append({"name": sec_name or "General", "fields": fields})
         fields = []
-    for line in ex.read_text().splitlines():
-        s = line.strip()
-        if not s: desc_buf = []; continue
-        is_divider = s.startswith('#') and len(s) > 8 and all(c in '#-= \t' for c in s)
-        if is_divider: continue
-        if s.startswith('#'):
-            txt = s.lstrip('#').strip()
-            if txt: desc_buf.append(txt)
+
+    for raw in ex.read_text().splitlines():
+        s = raw.strip()
+        if not s:
+            if not in_block: desc_buf = []
+            continue
+        if is_div(s):
+            if in_block:
+                # Closing divider: start new section, carry inner desc to next field
+                in_block = False
+                if block_title:
+                    flush_sec()
+                    sec_name = block_title
+                desc_buf = block_desc[:]
+                block_title = None; block_desc = []
+            else:
+                # Opening divider
+                in_block = True
+                block_title = None; block_desc = []
+            continue
+        txt = s.lstrip('#').strip() if s.startswith('#') else None
+        if txt is not None:
+            if in_block:
+                if block_title is None: block_title = txt
+                else: block_desc.append(txt)
+            else:
+                desc_buf.append(txt)
         elif '=' in s:
             k, _, default = s.partition('='); k = k.strip()
-            # Detect if this comment block is really a section title (no prior key in this block)
-            if desc_buf and not fields:
-                flush_sec(); sec_name = desc_buf[0]; desc_buf = desc_buf[1:]
-            fields.append({"key":k,"default":default,"value":cur.get(k,default),
+            fields.append({"key":k, "default":default, "value":cur.get(k, default),
                            "desc":" ".join(desc_buf).strip(),
                            "affects":ENV_DEPS.get(k,[]),
                            "secret":any(w in k.lower() for w in ["password","token","key","secret"])})
             desc_buf = []
+
     flush_sec()
-    return sections
+    return [s for s in sections if s["fields"]]
 
 def save_env_fields(field_map):
     """Rebuild .env from .env.example template, substituting field_map values."""
@@ -476,10 +499,13 @@ main{padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:18px}
   background:none;border:none;color:var(--muted);font-family:inherit;transition:var(--tr)}
 .env-mode-btn.on{background:var(--acc);color:#fff}
 /* fields mode */
-.env-fields{padding:16px;display:flex;flex-direction:column;gap:0}
-.env-section{margin-bottom:20px}
-.env-sec-title{font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--muted);padding-bottom:8px;border-bottom:1.5px solid var(--bdr);margin-bottom:12px}
+.env-fields{padding:16px;display:flex;flex-direction:column;gap:24px}
+.env-section{}
+.env-sec-title{display:flex;align-items:center;gap:8px;font-size:.76rem;font-weight:800;
+  letter-spacing:.07em;text-transform:uppercase;color:var(--acc2);
+  background:var(--accbg);border:1.5px solid color-mix(in srgb,var(--acc) 35%,transparent);
+  border-left:3px solid var(--acc);padding:7px 12px;border-radius:var(--rs);
+  margin-bottom:12px}
 .env-field{display:grid;grid-template-columns:200px 1fr auto;align-items:start;
   gap:10px;padding:8px 0;border-bottom:1px solid var(--bdr)}
 .env-field:last-child{border-bottom:none}
