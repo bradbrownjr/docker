@@ -25,41 +25,17 @@ if grep -q '\\n' "$ENV_FILE" 2>/dev/null; then
   sed -i 's/\\n/\n/g' "$ENV_FILE"
 fi
 
-# Rebuild .env from .env.example structure to remove duplicate keys
-if [[ -f "$ENV_EXAMPLE" ]]; then
-  _tmp=$(mktemp)
-  exec 3< "$ENV_EXAMPLE"
-  while IFS= read -r _line <&3; do
-    if [[ "$_line" =~ ^[[:space:]]*# || -z "$_line" ]]; then
-      printf '%s\n' "$_line"
-    elif [[ "$_line" == *=* ]]; then
-      _key="${_line%%=*}"
-      _cur=$(grep "^${_key}=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2-)
-      if [[ -n "$_cur" ]]; then
-        printf '%s=%s\n' "$_key" "$_cur"
-      else
-        printf '%s\n' "$_line"
-      fi
-    else
-      printf '%s\n' "$_line"
-    fi
-  done > "$_tmp"
-  exec 3<&-
-  mv "$_tmp" "$ENV_FILE"
-fi
-
 # Prompt for any missing or placeholder values
 if [[ -f "$ENV_EXAMPLE" ]]; then
   exec 3< "$ENV_EXAMPLE"
   while IFS= read -r line <&3; do
     [[ "$line" =~ ^#.*$ || -z "$line" ]] && continue
     key="${line%%=*}"
-    example_value="${line#*=}"
     if ! grep -q "^${key}=" "$ENV_FILE" 2>/dev/null; then
-      echo "$key=$example_value" >> "$ENV_FILE"
+      echo "$key=" >> "$ENV_FILE"
     fi
     current_value=$(grep -m1 "^${key}=" "$ENV_FILE" | cut -d= -f2-)
-    if [[ "$current_value" == *"your_"* || "$current_value" == *"_here"* || -z "$current_value" ]]; then
+    if [[ "$current_value" == *"your_"* || "$current_value" == *"_here"* ]]; then
       echo ""
       echo "==> Value needed for: $key"
       read -rp "    Enter $key: " new_value
@@ -72,39 +48,74 @@ fi
 
 if ! docker compose version &>/dev/null; then
   echo "ERROR: Docker Compose V2 plugin not found."
-  echo "  Run: bash '$DIR/start-docker.sh'  (it will install it automatically)"
-  echo "  Or manually: https://docs.docker.com/compose/install/"
+  echo "  See: https://docs.docker.com/compose/install/"
   exit 1
 fi
 
 _docker_err=$(docker info 2>&1 || true)
 if ! docker info &>/dev/null 2>&1; then
   if echo "$_docker_err" | grep -qi "permission denied"; then
-    # Group not active in this session — re-exec under sg docker once
     if [[ -z "${_DOCKER_GROUP_RELAUNCHED:-}" ]] && grep -qE "^docker:" /etc/group 2>/dev/null; then
       echo "==> Activating docker group for this session..."
-      export _DOCKER_GROUP_RELAUNCHED=1
-      exec sg docker -- bash "$0" "$@"
+      QUOTED="$(printf '%q ' "$0" "$@")"
+      exec sg docker -c "_DOCKER_GROUP_RELAUNCHED=1 bash $QUOTED"
     fi
     echo "ERROR: Permission denied on Docker socket."
-    echo "  Run: newgrp docker   (activates the group without logging out)"
+    echo "  Run: newgrp docker"
     exit 1
   else
-    # Daemon not running — start-docker.sh handles this
     echo "ERROR: Docker daemon is not running."
-    echo "  Run: bash '$DIR/start-docker.sh'  (starts the daemon and launches the stack)"
-    echo "  Or manually: sudo systemctl start docker"
+    echo "  Run: sudo systemctl start docker"
     exit 1
   fi
 fi
 
-COMPOSE=(docker compose -f "$DIR/docker-compose.ai-stack.yml" --env-file "$DIR/.env")
+# Parse arguments: first non-flag arg is the command; --profile flags build PROFILES
+CMD="interactive"
+PROFILES=()
+LOGS_SVC=""
+i=0
+ARGS=("$@")
+while [[ $i -lt ${#ARGS[@]} ]]; do
+  arg="${ARGS[$i]}"
+  case "$arg" in
+    --profile)
+      i=$((i+1))
+      PROFILES+=("--profile" "${ARGS[$i]}")
+      ;;
+    --profile=*)
+      PROFILES+=("--profile" "${arg#--profile=}")
+      ;;
+    logs)
+      CMD="logs"
+      i=$((i+1))
+      [[ $i -lt ${#ARGS[@]} ]] && LOGS_SVC="${ARGS[$i]}" || LOGS_SVC=""
+      i=$((i+1))
+      continue
+      ;;
+    *)
+      [[ "$CMD" == "interactive" ]] && CMD="$arg"
+      ;;
+  esac
+  i=$((i+1))
+done
+
+COMPOSE=(docker compose -f "$DIR/docker-compose.yml" --env-file "$DIR/.env" "${PROFILES[@]}")
+
+_has_profile() {
+  local p="$1"
+  local elem
+  for elem in "${PROFILES[@]}"; do
+    [[ "$elem" == "$p" ]] && return 0
+  done
+  return 1
+}
 
 print_urls() {
   local host
-  host=$(ip route get 1.1.1.1 2>/dev/null | awk '/src/{for(i=1;i<=NF;i++) if($i=="src") {print $(i+1); exit}}')
-  [[ -z "$host" ]] && host=$(hostname -I 2>/dev/null | awk '{print $1}')
-  [[ -z "$host" ]] && host="localhost"
+  host=$(ip route get 1.1.1.1 2>/dev/null | awk '/src/{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1);exit}}') || true
+  [[ -z "${host:-}" ]] && host=$(hostname -I 2>/dev/null | awk '{print $1}') || true
+  [[ -z "${host:-}" ]] && host="localhost"
   echo ""
   echo "  Services:"
   echo "    OpenWebUI    ->  http://${host}:3000"
@@ -113,13 +124,21 @@ print_urls() {
   echo "    Kokoro TTS   ->  http://${host}:8880/docs"
   echo "    Speaches STT ->  http://${host}:9000/docs"
   echo "    SearXNG      ->  http://${host}:8080"
+  if _has_profile "voicebox"; then
+    echo "    Voicebox     ->  http://${host}:17493"
+  fi
+  if _has_profile "odysseus"; then
+    echo "    Odysseus     ->  http://${host}:7000"
+    echo "    ChromaDB     ->  http://${host}:8100"
+    echo "    ntfy         ->  http://${host}:8091"
+  fi
   echo ""
 }
 
 print_status() {
   echo ""
   echo "  Container status:"
-  docker compose -f "$DIR/docker-compose.ai-stack.yml" ps --format "table {{.Name}}\t{{.Status}}" 2>/dev/null || true
+  "${COMPOSE[@]}" ps --format "table {{.Name}}\t{{.Status}}" 2>/dev/null || true
   echo ""
 }
 
@@ -131,11 +150,7 @@ open_browser() {
       echo "==> OpenWebUI is up."
       print_urls
       if [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" ]]; then
-        if command -v xdg-open &>/dev/null; then
-          xdg-open "$url" 2>/dev/null || true
-        elif command -v open &>/dev/null; then
-          open "$url" 2>/dev/null || true
-        fi
+        xdg-open "$url" 2>/dev/null || open "$url" 2>/dev/null || true
       fi
       return
     fi
@@ -148,7 +163,7 @@ open_browser() {
 do_start() {
   echo "==> Building custom images (if needed)..."
   "${COMPOSE[@]}" build
-  echo "==> Starting any stopped/missing containers..."
+  echo "==> Starting containers..."
   "${COMPOSE[@]}" up -d --remove-orphans
   open_browser
 }
@@ -162,13 +177,16 @@ do_restart() {
 }
 
 do_stop() {
-  echo "==> Stopping all containers..."
+  echo "==> Stopping containers..."
   "${COMPOSE[@]}" down
-  echo "==> All containers stopped."
+  echo "==> Done."
 }
 
 interactive() {
   print_status
+  local active_profiles="${PROFILES[*]:-none}"
+  echo "Active profiles: $active_profiles"
+  echo ""
   echo "What would you like to do?"
   echo "  1) Start non-running containers"
   echo "  2) Restart all containers"
@@ -177,23 +195,20 @@ interactive() {
   echo ""
   read -rp "Choice [1-4]: " choice
   case "$choice" in
-    1) do_start ;; 
-    2) do_restart ;; 
-    3) do_stop ;; 
-    4) exit 0 ;; 
+    1) do_start ;;
+    2) do_restart ;;
+    3) do_stop ;;
+    4) exit 0 ;;
     *) echo "Invalid choice."; exit 1 ;;
   esac
 }
 
-case "${1:-interactive}" in
+case "$CMD" in
   interactive) interactive ;;
   start)       do_start ;;
   restart)     do_restart ;;
   stop)        do_stop ;;
-  pull)
-    bash "$DIR/pull.sh"
-    do_start
-    ;;
+  logs)        "${COMPOSE[@]}" logs -f ${LOGS_SVC:+"$LOGS_SVC"} ;;
   free-vram)
     echo "==> Freeing ComfyUI VRAM..."
     curl -s -X POST http://localhost:8188/api/free \
@@ -201,13 +216,16 @@ case "${1:-interactive}" in
       -d '{"unload_models": true, "free_memory": true}' >/dev/null
     FREE=$(docker exec ollama nvidia-smi --query-gpu=memory.free --format=csv,noheader 2>/dev/null || echo "unknown")
     echo "==> Done. VRAM free: $FREE"
-    ;;  
-  logs)
-    "${COMPOSE[@]}" logs -f "${2:-}"
+    ;;
+  dashboard)
+    PORT="${DASHBOARD_PORT:-8888}"
+    echo "==> Starting dashboard on http://localhost:${PORT}"
+    echo "    (Ctrl-C to stop)"
+    exec python3 "$DIR/dashboard.py" "${DASHBOARD_PORT:+--port=$DASHBOARD_PORT}"
     ;;
   *)
-    echo "Unknown command: $1"
-    echo "Usage: $0 [start|restart|stop|pull|free-vram|logs [service]]"
+    echo "Unknown command: $CMD"
+    echo "Usage: $0 [start|restart|stop|logs [svc]|free-vram|dashboard] [--profile voicebox] [--profile odysseus]"
     exit 1
     ;;
 esac

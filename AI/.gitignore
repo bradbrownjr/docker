@@ -1,0 +1,21 @@
+# Runtime & secrets
+.env
+.dashboard.json
+
+# Odysseus runtime data (bind-mounted into the container)
+odysseus-data/
+odysseus-logs/
+odysseus/data/
+odysseus/logs/
+
+# Voicebox — cloned by setup.sh, not tracked here
+voicebox/
+
+# ComfyUI generated output
+voicebox-output/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/

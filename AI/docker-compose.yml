@@ -1,0 +1,334 @@
+services:
+
+  # ---------------------------------------------------------------------------
+  # LLM inference
+  # ---------------------------------------------------------------------------
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+      - OLLAMA_LOAD_TIMEOUT=15m
+      - OLLAMA_KEEP_ALIVE=0
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # ---------------------------------------------------------------------------
+  # Speech-to-text (Whisper via Speaches)
+  # ---------------------------------------------------------------------------
+  speaches:
+    image: ghcr.io/speaches-ai/speaches:latest-cuda
+    container_name: speaches
+    ports:
+      - "127.0.0.1:9000:8000"
+    volumes:
+      - speaches_cache:/root/.cache
+    environment:
+      - WHISPER__MODEL=Systran/faster-whisper-large-v3
+      - WHISPER__INFERENCE_DEVICE=cuda
+      - WHISPER__COMPUTE_TYPE=float16
+      - STT_MODEL_TTL=0
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # ---------------------------------------------------------------------------
+  # Text-to-speech (Kokoro)
+  # ---------------------------------------------------------------------------
+  kokoro:
+    image: ghcr.io/remsky/kokoro-fastapi-gpu:latest
+    container_name: kokoro
+    ports:
+      - "127.0.0.1:8880:8880"
+    environment:
+      - TARGET_MIN_TOKENS=175
+      - TARGET_MAX_TOKENS=250
+      - ABSOLUTE_MAX_TOKENS=450
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # ---------------------------------------------------------------------------
+  # Image generation (ComfyUI + Flux2-Klein)
+  # ---------------------------------------------------------------------------
+  comfyui:
+    build:
+      context: .
+      dockerfile: Dockerfile.comfyui
+    image: comfyui-flux2-klein:local
+    container_name: comfyui
+    ports:
+      - "127.0.0.1:8188:8188"
+    volumes:
+      - comfyui_app:/app
+      - comfyui_models:/app/models
+    environment:
+      - HF_TOKEN=${HF_TOKEN:-}
+      - LOW_VRAM=${LOW_VRAM:-false}
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # ---------------------------------------------------------------------------
+  # Web search (SearXNG)
+  # Shared by OpenWebUI and Odysseus.
+  # Pinned — do not bump to :latest without verifying the tag boots clean.
+  # 2026.6.2 crashes with KeyError: 'default_doi_resolver' (upstream #1414).
+  # ---------------------------------------------------------------------------
+  searxng:
+    image: docker.io/searxng/searxng:2026.5.31-7159b8aed
+    container_name: searxng
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        if [ ! -s /etc/searxng/settings.yml ] || grep -q 'ai-stack-searxng-json-2026-06-20\|__SEARXNG_SECRET__' /etc/searxng/settings.yml; then
+          secret="$${SEARXNG_SECRET:-}"
+          if [ -z "$$secret" ]; then
+            secret="$$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
+          fi
+          sed "s|__SEARXNG_SECRET__|$$secret|g" /tmp/searxng-settings.yml.template > /etc/searxng/settings.yml
+        fi
+        exec /usr/local/searxng/entrypoint.sh
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - searxng_data:/etc/searxng
+      - ./config/searxng/settings.yml:/tmp/searxng-settings.yml.template:ro,z
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8080/
+      - SEARXNG_SECRET=${SEARXNG_SECRET:-}
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/', timeout=5).read(1)\""]
+      interval: 5s
+      timeout: 6s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Main UI (OpenWebUI)
+  # ---------------------------------------------------------------------------
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:cuda
+    container_name: openwebui
+    ports:
+      - "127.0.0.1:3000:8080"
+    volumes:
+      - openwebui_data:/app/backend/data
+    environment:
+      # LLM
+      - OLLAMA_BASE_URL=http://ollama:11434
+      # Image generation via ComfyUI
+      - ENABLE_IMAGE_GENERATION=true
+      - IMAGE_GENERATION_ENGINE=comfyui
+      - COMFYUI_BASE_URL=http://comfyui:8188
+      - COMFYUI_WORKFLOW={"last_node_id":9,"last_link_id":10,"nodes":[{"id":1,"type":"UnetLoaderGGUF","pos":[50,200],"inputs":[],"outputs":[{"name":"MODEL","type":"MODEL","links":[1]}],"title":"Load UNet (GGUF)","widgets_values":["flux-2-klein-4b-Q5_K_S.gguf"]},{"id":2,"type":"CLIPLoaderGGUF","pos":[50,350],"inputs":[],"outputs":[{"name":"CLIP","type":"CLIP","links":[2,3]}],"title":"Load CLIP (GGUF - Qwen3)","widgets_values":["qwen_3_4b_fp4_flux2.safetensors","flux2"]},{"id":3,"type":"VAELoader","pos":[50,500],"inputs":[],"outputs":[{"name":"VAE","type":"VAE","links":[9]}],"title":"Load VAE","widgets_values":["flux2-vae.safetensors"]},{"id":4,"type":"CLIPTextEncode","pos":[350,280],"inputs":[{"name":"clip","type":"CLIP","link":2}],"outputs":[{"name":"CONDITIONING","type":"CONDITIONING","links":[4]}],"title":"Positive Prompt","widgets_values":["a beautiful landscape, masterpiece, highly detailed"]},{"id":5,"type":"CLIPTextEncode","pos":[350,420],"inputs":[{"name":"clip","type":"CLIP","link":3}],"outputs":[{"name":"CONDITIONING","type":"CONDITIONING","links":[5]}],"title":"Negative Prompt","widgets_values":[""]},{"id":6,"type":"EmptyLatentImage","pos":[350,560],"inputs":[],"outputs":[{"name":"LATENT","type":"LATENT","links":[6]}],"title":"Empty Latent Image","widgets_values":[1024,1024,1]},{"id":7,"type":"KSampler","pos":[650,350],"inputs":[{"name":"model","type":"MODEL","link":1},{"name":"positive","type":"CONDITIONING","link":4},{"name":"negative","type":"CONDITIONING","link":5},{"name":"latent_image","type":"LATENT","link":6}],"outputs":[{"name":"LATENT","type":"LATENT","links":[8]}],"title":"KSampler","widgets_values":[42,"fixed",4,1.0,"euler","simple",1.0]},{"id":8,"type":"VAEDecode","pos":[950,350],"inputs":[{"name":"samples","type":"LATENT","link":8},{"name":"vae","type":"VAE","link":9}],"outputs":[{"name":"IMAGE","type":"IMAGE","links":[10]}],"title":"VAE Decode","widgets_values":[]},{"id":9,"type":"SaveImage","pos":[1150,350],"inputs":[{"name":"images","type":"IMAGE","link":10}],"outputs":[],"title":"Save Image","widgets_values":["ComfyUI"]}],"links":[[1,1,0,7,0,"MODEL"],[2,2,0,4,0,"CLIP"],[3,2,0,5,0,"CLIP"],[4,4,0,7,1,"CONDITIONING"],[5,5,0,7,2,"CONDITIONING"],[6,6,0,7,3,"LATENT"],[8,7,0,8,0,"LATENT"],[9,3,0,8,1,"VAE"],[10,8,0,9,0,"IMAGE"]],"groups":[],"config":{},"extra":{},"version":0.4}
+      - COMFYUI_WORKFLOW_NODES={"text":["4"],"ckpt_name":["1"],"width":["6"],"height":["6"],"steps":["7"],"seed":["7"]}
+      # TTS via Kokoro
+      - AUDIO_TTS_ENGINE=openai
+      - AUDIO_TTS_OPENAI_API_BASE_URL=http://kokoro:8880/v1
+      - AUDIO_TTS_OPENAI_API_KEY=not-needed
+      - AUDIO_TTS_MODEL=kokoro
+      - AUDIO_TTS_VOICE=af_bella
+      # STT via Speaches
+      - AUDIO_STT_ENGINE=openai
+      - AUDIO_STT_OPENAI_API_BASE_URL=http://speaches:8000/v1
+      - AUDIO_STT_OPENAI_API_KEY=not-needed
+      - AUDIO_STT_MODEL=Systran/faster-whisper-large-v3
+      # Web search via SearXNG
+      - ENABLE_RAG_WEB_SEARCH=true
+      - RAG_WEB_SEARCH_ENGINE=searxng
+      - SEARXNG_QUERY_URL=http://searxng:8080/search?q=<query>&format=json
+    depends_on:
+      searxng:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+      speaches:
+        condition: service_started
+      kokoro:
+        condition: service_started
+      comfyui:
+        condition: service_started
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # ---------------------------------------------------------------------------
+  # Voice studio (Voicebox) — local voice cloning, TTS, STT, dictation
+  # Start with:  docker compose --profile voicebox up -d
+  # Requires:    voicebox/ subdir (already cloned at setup time)
+  # Port:        17493
+  # ---------------------------------------------------------------------------
+  voicebox:
+    profiles: [voicebox]
+    build:
+      context: ./voicebox
+    container_name: voicebox
+    ports:
+      - "127.0.0.1:17493:17493"
+    volumes:
+      - ./voicebox-output:/app/data/generations
+      - voicebox_data:/app/data
+      - voicebox_hf_cache:/home/voicebox/.cache/huggingface
+    environment:
+      - LOG_LEVEL=info
+      - NUMBA_CACHE_DIR=/tmp/numba_cache
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+
+  # ---------------------------------------------------------------------------
+  # Odysseus AI agent — kept but parked until ready for prime time
+  # Start with:  docker compose --profile odysseus up -d
+  # Port:        7000
+  # ---------------------------------------------------------------------------
+  odysseus:
+    profiles: [odysseus]
+    build:
+      context: ./odysseus
+    container_name: odysseus
+    ports:
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-7000}:7000"
+    volumes:
+      - ${APP_DATA_DIR:-./odysseus-data}:/app/data:z
+      - ${APP_LOGS_DIR:-./odysseus-logs}:/app/logs:z
+      - ${APP_DATA_DIR:-./odysseus-data}/ssh:/app/.ssh:z
+      - ${APP_DATA_DIR:-./odysseus-data}/huggingface:/app/.cache/huggingface:z
+      - ${APP_DATA_DIR:-./odysseus-data}/local:/app/.local:z
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - LLM_HOST=${LLM_HOST:-localhost}
+      - LLM_HOSTS=${LLM_HOSTS:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+      - RESEARCH_LLM_ENDPOINT=${RESEARCH_LLM_ENDPOINT:-}
+      - HF_TOKEN=${HF_TOKEN:-}
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN:-}
+      - SEARXNG_INSTANCE=http://searxng:8080
+      - CHROMADB_HOST=chromadb
+      - CHROMADB_PORT=8000
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/app.db}
+      - AUTH_ENABLED=${AUTH_ENABLED:-true}
+      - LOCALHOST_BYPASS=${LOCALHOST_BYPASS:-false}
+      - ODYSSEUS_ADMIN_USER=${ODYSSEUS_ADMIN_USER:-admin}
+      - ODYSSEUS_ADMIN_PASSWORD=${ODYSSEUS_ADMIN_PASSWORD:-}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost,http://127.0.0.1}
+      - SECURE_COOKIES=${SECURE_COOKIES:-false}
+      - EMBEDDING_URL=${EMBEDDING_URL:-}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-}
+      - EMBEDDING_API_KEY=${EMBEDDING_API_KEY:-}
+      - FASTEMBED_MODEL=${FASTEMBED_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+      - FASTEMBED_CACHE_PATH=${FASTEMBED_CACHE_PATH:-}
+      - CLEANUP_INTERVAL_HOURS=${CLEANUP_INTERVAL_HOURS:-24}
+      - ODYSSEUS_INPROCESS_POLLERS=${ODYSSEUS_INPROCESS_POLLERS:-1}
+      - ODYSSEUS_INPROCESS_TASKS=${ODYSSEUS_INPROCESS_TASKS:-1}
+      - ODYSSEUS_SCRIPT_HOST=${ODYSSEUS_SCRIPT_HOST:-localhost}
+      - ODYSSEUS_CHAT_UPLOAD_MAX_BYTES=${ODYSSEUS_CHAT_UPLOAD_MAX_BYTES:-10485760}
+      - ODYSSEUS_GALLERY_UPLOAD_MAX_BYTES=${ODYSSEUS_GALLERY_UPLOAD_MAX_BYTES:-104857600}
+      - ODYSSEUS_GALLERY_TRANSFORM_UPLOAD_MAX_BYTES=${ODYSSEUS_GALLERY_TRANSFORM_UPLOAD_MAX_BYTES:-26214400}
+      - ODYSSEUS_MEMORY_IMPORT_MAX_BYTES=${ODYSSEUS_MEMORY_IMPORT_MAX_BYTES:-10485760}
+      - ODYSSEUS_PERSONAL_UPLOAD_MAX_BYTES=${ODYSSEUS_PERSONAL_UPLOAD_MAX_BYTES:-26214400}
+      - ODYSSEUS_EMAIL_COMPOSE_UPLOAD_MAX_BYTES=${ODYSSEUS_EMAIL_COMPOSE_UPLOAD_MAX_BYTES:-26214400}
+      - ODYSSEUS_STT_MAX_AUDIO_BYTES=${ODYSSEUS_STT_MAX_AUDIO_BYTES:-26214400}
+      - ODYSSEUS_ICS_MAX_BYTES=${ODYSSEUS_ICS_MAX_BYTES:-10485760}
+      - DATA_BRAVE_API_KEY=${DATA_BRAVE_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - GOOGLE_PSE_CX=${GOOGLE_PSE_CX:-}
+      - TAVILY_API_KEY=${TAVILY_API_KEY:-}
+      - SERPER_API_KEY=${SERPER_API_KEY:-}
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+    depends_on:
+      searxng:
+        condition: service_healthy
+      chromadb:
+        condition: service_started
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # ChromaDB — vector store for Odysseus
+  # Also pulled in by the odysseus profile
+  # ---------------------------------------------------------------------------
+  chromadb:
+    profiles: [odysseus]
+    image: docker.io/chromadb/chroma:latest
+    container_name: chromadb
+    ports:
+      - "${CHROMADB_BIND:-127.0.0.1}:8100:8000"
+    volumes:
+      - chromadb_data:/chroma/chroma
+    environment:
+      - ANONYMIZED_TELEMETRY=FALSE
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # ntfy — push notifications for Odysseus
+  # ---------------------------------------------------------------------------
+  ntfy:
+    profiles: [odysseus]
+    image: docker.io/binwiederhier/ntfy
+    container_name: ntfy
+    command: serve
+    ports:
+      - "${NTFY_BIND:-127.0.0.1}:8091:80"
+    volumes:
+      - ntfy_cache:/var/cache/ntfy
+    environment:
+      - NTFY_BASE_URL=${NTFY_BASE_URL:-http://localhost:8091}
+    restart: unless-stopped
+
+volumes:
+  ollama_models:
+  speaches_cache:
+  comfyui_app:
+  comfyui_models:
+  searxng_data:
+  openwebui_data:
+  voicebox_data:
+  voicebox_hf_cache:
+  chromadb_data:
+  ntfy_cache:
