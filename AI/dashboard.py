@@ -417,6 +417,7 @@ main{padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:18px}
 
 /* ── section ── */
 .sec{display:flex;flex-direction:column;gap:10px}
+#svc-container{display:flex;flex-direction:column;gap:28px}
 .sec-hdr{display:flex;align-items:center;gap:8px}
 .sec-title{font-size:.75rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
   color:var(--muted);white-space:nowrap}
